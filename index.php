@@ -10,16 +10,32 @@
 			background-color: #1e1e1e;
 			color: #d4d4d4;
 			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			margin: 0;
+			padding: 0;
+		}
+
+		.container {
+			width: 90%;
+			margin: 0 auto;
+			padding: 20px;
+		}
+
+		.path-container {
+			margin-bottom: 10px;
+			font-size: 14px;
+			color: #a0a0a0;
 		}
 
 		.search-container {
 			margin-bottom: 10px;
 			display: flex;
+			flex-wrap: wrap;
 			justify-content: space-between;
+			gap: 10px;
 		}
 
 		.search-container input[type="text"] {
-			width: 92%;
+			flex: 1 1 100%;
 			padding: 8px;
 			box-sizing: border-box;
 			border: 1px solid #2d2d2d;
@@ -29,6 +45,7 @@
 		}
 
 		.search-container button {
+			flex: 1 1 28%;
 			padding: 8px;
 			background-color: #2d2d2d;
 			border: 1px solid #2d2d2d;
@@ -40,6 +57,7 @@
 		.file-table {
 			width: 100%;
 			border-collapse: collapse;
+			overflow-x: auto;
 		}
 
 		.file-table th,
@@ -88,6 +106,19 @@
 		.file-table td:nth-child(4) {
 			width: 15%;
 		}
+
+		.grey-text {
+			color: #a0a0a0;
+			font-size: 12px;
+		}
+
+		@media (max-width: 768px) {
+
+			.search-container input[type="text"],
+			.search-container button {
+				flex: 1 1 100%;
+			}
+		}
 	</style>
 	<script>
 		function searchFiles() {
@@ -110,9 +141,10 @@
 			}
 		}
 
-		let sortOrder = true; // true for ascending, false for descending
+		let nameSortOrder = true;
+		let dateSortOrder = true;
 
-		function sortTable() {
+		function sortTable(columnIndex, sortOrder) {
 			var table, rows, switching, i, x, y, shouldSwitch;
 			table = document.getElementById("fileTable");
 			switching = true;
@@ -123,8 +155,8 @@
 
 				for (i = 1; i < (rows.length - 1); i++) {
 					shouldSwitch = false;
-					x = rows[i].getElementsByTagName("TD")[0];
-					y = rows[i + 1].getElementsByTagName("TD")[0];
+					x = rows[i].getElementsByTagName("TD")[columnIndex];
+					y = rows[i + 1].getElementsByTagName("TD")[columnIndex];
 
 					if (sortOrder) {
 						if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
@@ -143,81 +175,104 @@
 					switching = true;
 				}
 			}
+		}
 
-			sortOrder = !sortOrder;
+		function sortByName() {
+			sortTable(0, nameSortOrder);
+			nameSortOrder = !nameSortOrder;
+		}
+
+		function sortByDate() {
+			sortTable(1, dateSortOrder);
+			dateSortOrder = !dateSortOrder;
 		}
 	</script>
 </head>
 
 <body>
-	<div class="search-container">
-		<input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
-		<button onclick="sortTable()">Filter Name</button>
-	</div>
-	<table class="file-table" id="fileTable">
-		<thead>
-			<tr>
-				<th>Name</th>
-				<th>Date modified</th>
-				<th>Type</th>
-				<th>Size</th>
-			</tr>
-		</thead>
-		<tbody>
+	<div class="container">
+		<div class="path-container">
 			<?php
 			$dir = './';
-			$files = scandir($dir);
-
-			function countFiles($dir)
-			{
-				$file_count = 0;
+			echo "Current Path: <span style='color: #fcd53f;'>" . realpath($dir) . "</span>";
+			?>
+		</div>
+		<div class="search-container">
+			<input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
+			<button onclick="sortByName()">Filter Name</button>
+			<button onclick="sortByDate()">Filter Date modified</button>
+		</div>
+		<table class="file-table" id="fileTable">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th class="grey-text">Date modified</th>
+					<th class="grey-text">Type</th>
+					<th class="grey-text">Size</th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php
 				$files = scandir($dir);
+
+				function countFiles($dir)
+				{
+					$file_count = 0;
+					$files = scandir($dir);
+					foreach ($files as $file) {
+						if ($file != '.' && $file != '..' && !is_dir($dir . '/' . $file)) {
+							$file_count++;
+						}
+					}
+					return $file_count;
+				}
+
+				function getDirSize($dir)
+				{
+					$size = 0;
+					foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir)) as $file) {
+						$size += $file->getSize();
+					}
+					return $size;
+				}
+
+				$folders = [];
+
 				foreach ($files as $file) {
-					if ($file != '.' && $file != '..' && !is_dir($dir . '/' . $file)) {
-						$file_count++;
+					if ($file != '.' && $file != '..' && is_dir($file)) {
+						$folders[] = $file;
 					}
 				}
-				return $file_count;
-			}
 
-			function getDirSize($dir)
-			{
-				$size = 0;
-				foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir)) as $file) {
-					$size += $file->getSize();
+				usort($folders, function ($a, $b) use ($dir) {
+					return filemtime($dir . $b) - filemtime($dir . $a);
+				});
+
+				foreach ($folders as $file) {
+					$file_count = countFiles($dir . $file);
+					$dir_size = getDirSize($dir . $file);
+					$last_modified = date("d/m/Y H:i", filemtime($dir . $file));
+
+					if ($dir_size >= 1024 * 1024 * 1000) {
+						$size_display = round($dir_size / (1024 * 1024 * 1024), 2) . " GB";
+					} elseif ($dir_size >= 1024 * 1024) {
+						$size_display = round($dir_size / (1024 * 1024), 2) . " MB";
+					} else {
+						$size_display = round($dir_size / 1024, 2) . " KB";
+					}
+
+					echo "<tr>
+                        <td><span class='folder-icon'></span><a href='$file'>$file</a></td>
+                        <td class='grey-text'>$last_modified</td>
+                        <td class='grey-text'>File folder</td>
+                        <td class='grey-text'>$size_display</td>
+                    </tr>";
 				}
-				return $size;
-			}
+				?>
+			</tbody>
+		</table>
+	</div>
 
-			$folders = [];
-
-			foreach ($files as $file) {
-				if ($file != '.' && $file != '..' && is_dir($file)) {
-					$folders[] = $file;
-				}
-			}
-
-			usort($folders, function ($a, $b) use ($dir) {
-				return filemtime($dir . $b) - filemtime($dir . $a);
-			});
-
-			foreach ($folders as $file) {
-				$file_count = countFiles($dir . $file);
-				$dir_size = getDirSize($dir . $file);
-				$last_modified = date("d/m/Y H:i", filemtime($dir . $file));
-
-				$size_display = ($dir_size < 1024 * 1024) ? round($dir_size / 1024, 2) . " KB" : round($dir_size / (1024 * 1024), 2) . " MB";
-
-				echo "<tr>
-                    <td><span class='folder-icon'></span><a href='$file'>$file</a></td>
-                    <td>$last_modified</td>
-                    <td>File folder</td>
-                    <td>$size_display</td>
-                </tr>";
-			}
-			?>
-		</tbody>
-	</table>
 </body>
 
 </html>
