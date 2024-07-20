@@ -2,7 +2,30 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
+    <meta name="description" content="file manager of htdocs or /var/www/html">
+    <meta name="language" content="id">
+    <meta name="author" content="Xnuvers007 & Lukman754">
+    <meta name="keywords" content="htdocs,html,filemanager">
+    <meta name="robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+
+    <meta itemprop="name" content="File Manager htdocs (/var/www/html)">
+    <meta itemprop="description" content="file manager of htdocs or /var/www/html">
+    <meta itemprop="image" content=" ">
+
+    <meta property="og:url" content="http://localhost:80">
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="File Manager htdocs (/var/www/html)" />
+    <meta property="og:description" content="file manager of htdocs or /var/www/html" />
+    <meta property="og:image" content=" " />
+    <meta property="og:site_name" content="File Manager htdocs (/var/www/html)" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="File Manager htdocs (/var/www/html)" />
+    <meta name="twitter:description" content="file manager of htdocs or /var/www/html" />
+    <meta name="twitter:image" content=" " />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Manager Htdocs</title>
     <style>
@@ -13,6 +36,16 @@
             margin: 0;
             padding: 0;
             transition: background-color 0.3s, color 0.3s;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 14px;
+            color: springgreen;
+            margin-top: 20px;
+            padding: 10px;
+            border-top: 1px solid #2d2d2d;
+            
         }
 
         .container {
@@ -289,15 +322,18 @@
                     if (filter) {
                         if (txtValue.toUpperCase().indexOf(filter) > -1) {
                             tr[i].style.display = "";
+                            td.innerHTML = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
                         } else {
                             tr[i].style.display = "none";
                         }
                     } else {
                         tr[i].style.display = "";
+                        td.innerHTML = txtValue;
                     }
                 }
             }
         }
+
 
         function parseSize(sizeStr) {
             let size = parseFloat(sizeStr);
@@ -403,11 +439,19 @@
             var minutes = now.getMinutes();
             var seconds = now.getSeconds();
 
-            var formattedDateTime = hours % 12 + ":" + (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds) + " " + (hours >= 12 ? "PM" : "AM") + " " + day + "/" + month + "/" + year;
+            // var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            var days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            var formattedDateTime = days[now.getDay()] + " " + day + " " + getMonthName(month) + " " + year + " \n " + hours + ":" + (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
             var datetimeElement = document.getElementById("datetime");
             if (datetimeElement) {
                 datetimeElement.textContent = formattedDateTime;
             }
+        }
+
+        function getMonthName(month) {
+            // var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            var months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return months[month - 1];
         }
 
         updateTime();
@@ -538,6 +582,16 @@
             </tbody>
         </table>
     </div>
+    <footer class="footer">
+        <strong>
+            <p>
+                &copy; 2024 <?php echo gethostname(); ?>. All rights reserved. <br /> <br />
+                <a href="https://github.com/lukman754/apache-autoindex-theme" target="__blank">
+                    CREATED BY LUKMAN754 & XNUVERS007
+                </a>
+            </p>
+        </strong>
+    </footer>
 </body>
 
 </html>
