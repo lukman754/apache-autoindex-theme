@@ -551,33 +551,45 @@
                     }
                     return $totalSize;
                 }
+$baseDir = './'; // Set the base directory
+$currentDir = isset($_GET['dir']) ? $_GET['dir'] : $baseDir;
 
-                $dir = './';
-                $files = array_diff(scandir($dir), array('.', '..'));
-                usort($files, function ($a, $b) use ($dir) {
-                    return filemtime($dir . $b) - filemtime($dir . $a);
-                });
+// Sanitize the directory input to prevent directory traversal attacks
+$currentDir = realpath($currentDir);
 
-                foreach ($files as $file) {
-                    $filePath = $dir . $file;
-                    $fileSize = is_dir($filePath) ? humanFileSize(getFolderSize($filePath)) : humanFileSize(filesize($filePath));
-                    $fileDate = date("F d Y H:i:s.", filemtime($filePath));
-                    $fileType = filetype($filePath);
+// Ensure that the current directory is within the base directory
+if (strpos($currentDir, realpath($baseDir)) !== 0) {
+    $currentDir = $baseDir; // If not, reset to base directory
+}
 
-                    echo "<tr>";
-                    if (is_dir($filePath)) {
-                        echo "<td class='folder-icon'><a href='$filePath'>$file</a></td>";
-                        echo "<td>$fileDate</td>";
-                        echo "<td>Folder</td>";
-                        echo "<td class='grey-text'>$fileSize</td>";
-                    } else {
-                        echo "<td class='file-icon'><a href='$filePath'>$file</a></td>";
-                        echo "<td>$fileDate</td>";
-                        echo "<td>$fileType</td>";
-                        echo "<td>$fileSize</td>";
-                    }
-                    echo "</tr>";
-                }
+echo "Current Path: <span class='path-color light-mode'>" . htmlspecialchars($currentDir) . "</span>";
+
+// Listing files and folders
+$files = array_diff(scandir($currentDir), array('.', '..'));
+usort($files, function ($a, $b) use ($currentDir) {
+    return filemtime($currentDir . '/' . $b) - filemtime($currentDir . '/' . $a);
+});
+
+foreach ($files as $file) {
+    $filePath = $currentDir . '/' . $file;
+    $fileSize = is_dir($filePath) ? humanFileSize(getFolderSize($filePath)) : humanFileSize(filesize($filePath));
+    $fileDate = date("F d Y H:i:s.", filemtime($filePath));
+    $fileType = filetype($filePath);
+
+    echo "<tr>";
+    if (is_dir($filePath)) {
+        echo "<td class='folder-icon'><a href='?dir=" . urlencode($filePath) . "'>$file</a></td>";
+        echo "<td>$fileDate</td>";
+        echo "<td>Folder</td>";
+        echo "<td class='grey-text'>$fileSize</td>";
+    } else {
+        echo "<td class='file-icon'><a href='$filePath'>$file</a></td>";
+        echo "<td>$fileDate</td>";
+        echo "<td>$fileType</td>";
+        echo "<td>$fileSize</td>";
+    }
+    echo "</tr>";
+}
                 ?>
             </tbody>
         </table>
@@ -593,5 +605,4 @@
         </strong>
     </footer>
 </body>
-
 </html>
