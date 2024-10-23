@@ -308,32 +308,44 @@
         }
     </style>
     <script>
-        function searchFiles() {
-            var input, filter, table, tr, td, i, txtValue;
-            input = document.getElementById("searchInput");
-            filter = input.value.toUpperCase();
-            table = document.getElementById("fileTable");
-            tr = table.getElementsByTagName("tr");
+function goBack() {
+    const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+    const parentDir = currentDir.substring(0, currentDir.lastIndexOf('/')) || './';
+    window.location.href = '?dir=' + encodeURIComponent(parentDir);
+}
 
-            for (i = 1; i < tr.length; i++) {
-                td = tr[i].getElementsByTagName("td")[0];
-                if (td) {
-                    txtValue = td.textContent || td.innerText;
-                    if (filter) {
-                        if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                            tr[i].style.display = "";
-                            td.innerHTML = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
-                        } else {
-                            tr[i].style.display = "none";
-                        }
-                    } else {
-                        tr[i].style.display = "";
-                        td.innerHTML = txtValue;
-                    }
+
+function searchFiles() {
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("fileTable");
+    tr = table.getElementsByTagName("tr");
+
+    if (!filter) {
+        // If input is empty, redirect to the root or main folder
+        window.location.href = '?dir=./'; // Redirect to root folder
+        return;
+    }
+
+    for (i = 1; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
+        if (td) {
+            txtValue = td.textContent || td.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+                // Highlight only the matched text
+                const link = td.getElementsByTagName("a")[0];
+                if (link) {
+                    const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
+                    link.innerHTML = highlightedText;
                 }
+            } else {
+                tr[i].style.display = "none";
             }
         }
-
+    }
+}
 
         function parseSize(sizeStr) {
             let size = parseFloat(sizeStr);
@@ -504,6 +516,7 @@
     <div class="container">
         <h1>File Explorer</h1>
         <button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
+        <button onclick="goBack()" class="toogle" type="button">Back</button>
         <p id="datetime"></p>
         <div class="path-container">
             <?php
@@ -551,34 +564,30 @@
                     }
                     return $totalSize;
                 }
-
-                $dir = './';
-                $files = array_diff(scandir($dir), array('.', '..'));
-                usort($files, function ($a, $b) use ($dir) {
-                    return filemtime($dir . $b) - filemtime($dir . $a);
-                });
-
+                $currentDir = isset($_GET['dir']) ? $_GET['dir'] : './';
+                $files = array_diff(scandir($currentDir), array('.', '..'));
+                
                 foreach ($files as $file) {
-                    $filePath = $dir . $file;
+                    $filePath = $currentDir . '/' . $file;
                     $fileSize = is_dir($filePath) ? humanFileSize(getFolderSize($filePath)) : humanFileSize(filesize($filePath));
                     $fileDate = date("F d Y H:i:s.", filemtime($filePath));
                     $fileType = filetype($filePath);
-
+                
                     echo "<tr>";
                     if (is_dir($filePath)) {
-                        echo "<td class='folder-icon'><a href='$filePath'>$file</a></td>";
+                        echo "<td class='folder-icon'><a href='?dir=" . urlencode($filePath) . "'>$file</a></td>";
                         echo "<td>$fileDate</td>";
                         echo "<td>Folder</td>";
                         echo "<td class='grey-text'>$fileSize</td>";
                     } else {
-                        echo "<td class='file-icon'><a href='$filePath'>$file</a></td>";
+                        echo "<td class='file-icon'><a href='" . htmlspecialchars($filePath) . "' target='_blank'>$file</a></td>";
                         echo "<td>$fileDate</td>";
                         echo "<td>$fileType</td>";
                         echo "<td>$fileSize</td>";
                     }
                     echo "</tr>";
                 }
-                ?>
+                            ?>
             </tbody>
         </table>
     </div>
