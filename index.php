@@ -308,6 +308,12 @@
         }
     </style>
     <script>
+function goBack() {
+    const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+    const parentDir = currentDir.substring(0, currentDir.lastIndexOf('/')) || './';
+    window.location.href = '?dir=' + encodeURIComponent(parentDir);
+}
+
 
 function searchFiles() {
     var input, filter, table, tr, td, i, txtValue;
@@ -316,34 +322,30 @@ function searchFiles() {
     table = document.getElementById("fileTable");
     tr = table.getElementsByTagName("tr");
 
+    if (!filter) {
+        // If input is empty, redirect to the root or main folder
+        window.location.href = '?dir=./'; // Redirect to root folder
+        return;
+    }
+
     for (i = 1; i < tr.length; i++) {
         td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
         if (td) {
             txtValue = td.textContent || td.innerText;
-            if (filter) {
-                if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                    tr[i].style.display = "";
-                    // Highlight only the matched text
-                    const link = td.getElementsByTagName("a")[0];
-                    if (link) {
-                        const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
-                        link.innerHTML = highlightedText;
-                    }
-                } else {
-                    tr[i].style.display = "none";
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+                // Highlight only the matched text
+                const link = td.getElementsByTagName("a")[0];
+                if (link) {
+                    const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
+                    link.innerHTML = highlightedText;
                 }
             } else {
-                tr[i].style.display = "";
-                if (td.getElementsByTagName("a")[0]) {
-                    const link = td.getElementsByTagName("a")[0];
-                    link.innerHTML = txtValue; // Reset to original text
-                }
+                tr[i].style.display = "none";
             }
         }
     }
 }
-
-
 
         function parseSize(sizeStr) {
             let size = parseFloat(sizeStr);
@@ -514,6 +516,7 @@ function searchFiles() {
     <div class="container">
         <h1>File Explorer</h1>
         <button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
+        <button onclick="goBack()" class="toogle" type="button">Back</button>
         <p id="datetime"></p>
         <div class="path-container">
             <?php
