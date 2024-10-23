@@ -308,31 +308,41 @@
         }
     </style>
     <script>
-        function searchFiles() {
-            var input, filter, table, tr, td, i, txtValue;
-            input = document.getElementById("searchInput");
-            filter = input.value.toUpperCase();
-            table = document.getElementById("fileTable");
-            tr = table.getElementsByTagName("tr");
 
-            for (i = 1; i < tr.length; i++) {
-                td = tr[i].getElementsByTagName("td")[0];
-                if (td) {
-                    txtValue = td.textContent || td.innerText;
-                    if (filter) {
-                        if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                            tr[i].style.display = "";
-                            td.innerHTML = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
-                        } else {
-                            tr[i].style.display = "none";
-                        }
-                    } else {
-                        tr[i].style.display = "";
-                        td.innerHTML = txtValue;
+function searchFiles() {
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("fileTable");
+    tr = table.getElementsByTagName("tr");
+
+    for (i = 1; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
+        if (td) {
+            txtValue = td.textContent || td.innerText;
+            if (filter) {
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                    // Highlight only the matched text
+                    const link = td.getElementsByTagName("a")[0];
+                    if (link) {
+                        const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
+                        link.innerHTML = highlightedText;
                     }
+                } else {
+                    tr[i].style.display = "none";
+                }
+            } else {
+                tr[i].style.display = "";
+                if (td.getElementsByTagName("a")[0]) {
+                    const link = td.getElementsByTagName("a")[0];
+                    link.innerHTML = txtValue; // Reset to original text
                 }
             }
         }
+    }
+}
+
 
 
         function parseSize(sizeStr) {
