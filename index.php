@@ -27,6 +27,8 @@
     <meta name="twitter:image" content=" " />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
     <title>File Manager Htdocs</title>
     <style>
         body {
@@ -38,15 +40,37 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
-        footer {
-            text-align: center;
-            font-size: 14px;
-            color: springgreen;
-            margin-top: 20px;
-            padding: 10px;
-            border-top: 1px solid #2d2d2d;
-            
-        }
+
+        .footer {
+			display: block;
+			justify-content: space-between;
+			align-items: center;
+			text-align: center;
+			padding: 15px 20px;
+			font-size: 10px;
+		}
+
+		.footer p {
+			margin-bottom: 15px;
+		}
+
+		.footer a {
+			color: #fcd53f;
+			text-decoration: none;
+			background-color: #2d2d2d;
+			border-radius: 5px;
+			padding: 5px 10px;
+		}
+
+		
+		.footer a:hover {
+			color: #ffb02e; /* Warna teks link saat di-hover */
+		}
+
+		.footer strong {
+			font-weight: normal; /* Set weight ke normal untuk konsistensi */
+		}
+
 
         .container {
             width: 90%;
@@ -54,40 +78,20 @@
             padding: 20px;
         }
 
-        .path-container {
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #a0a0a0;
-        }
+		.search-container {
+			margin-bottom: 10px;
+		}
 
-        .search-container {
-            margin-bottom: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 10px;
-        }
+		.search-container input[type="text"] {
+			width: 100%;
+			padding: 10px;
+			box-sizing: border-box;
+			border: 0;
+			border-radius: 4px;
+			background-color: #252526;
+			color: #d4d4d4;
+		}
 
-        .search-container input[type="text"] {
-            flex: 1 1 100%;
-            padding: 10px;
-            box-sizing: border-box;
-            border: 1px solid #2d2d2d;
-            border-radius: 4px;
-            background-color: #252526;
-            color: #d4d4d4;
-        }
-
-        .search-container button {
-            flex: 1 1 28%;
-            padding: 10px;
-            background-color: #2d2d2d;
-            border: 1px solid #2d2d2d;
-            border-radius: 4px;
-            color: #d4d4d4;
-            cursor: pointer;
-            position: relative;
-        }
 
         .search-container button .sort-icon {
             position: absolute;
@@ -100,11 +104,12 @@
             width: 100%;
             border-collapse: collapse;
             overflow-x: auto;
+			font-size: 12px;
         }
 
         .file-table th,
         .file-table td {
-            padding: 12px;
+            padding: 8px;
             text-align: left;
             border-bottom: 1px solid #2d2d2d;
         }
@@ -236,31 +241,55 @@
             }
         }
 
-        .toogle {
-            /* background-color: #2d2d2d; */
-            background-color: white;
-            /* color: #d4d4d4; */
-            color: black;
-            font-color: black;
-            border: 1px solid #2d2d2d;
-            padding: 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            position: relative;
-            top: 5px;
-            right: 10px;
-        }
+		body.light-mode {
+			background-color: #ffffff; /* Warna latar untuk tema terang */
+			color: #333333; /* Warna teks untuk tema terang */
+		}
+
+		body.dark-mode {
+			background-color: #1c1c1c; /* Warna latar untuk tema gelap */
+			color: #ffffff; /* Warna teks untuk tema gelap */
+		}
+
+		header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			background-color: inherit; /* Ikuti warna latar body */
+		}
+
+		.button {
+			display: flex;
+			gap: 10px;
+		}
+
+		.toogle {
+			padding: 8px 16px;
+			font-size: 14px;
+			background-color: #007bff;
+			color: #fff;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		body.light-mode .toogle {
+			background-color: #2d2d2d;
+		}
+
+		body.dark-mode .toogle {
+			background-color: #444;
+		}
+
 
         .light-mode .toogle {
-            background-color: #e0e0e0;
-            color: #333;
-            border: 1px solid #e0e0e0;
-            padding: 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            position: relative;
-            top: 5px;
-            right: 10px;
+            padding: 8px 16px;
+			font-size: 14px;
+			background-color: #007bff;
+			color: #fff;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
         }
 
         .toogle:hover {
@@ -422,16 +451,16 @@ function searchFiles() {
             var typeSortIcon = document.getElementById("typeSortIcon");
 
             if (nameSortIcon) {
-                nameSortIcon.textContent = nameSortOrder ? "🔼" : "🔽";
+                nameSortIcon.textContent = nameSortOrder ? "▴" : "▾";
             }
             if (dateSortIcon) {
-                dateSortIcon.textContent = dateSortOrder ? "🔼" : "🔽";
+                dateSortIcon.textContent = dateSortOrder ? "▴" : "▾";
             }
             if (sizeSortIcon) {
-                sizeSortIcon.textContent = sizeSortOrder ? "🔼" : "🔽";
+                sizeSortIcon.textContent = sizeSortOrder ? "▴" : "▾";
             }
             if (typeSortIcon) {
-                typeSortIcon.textContent = typeSortOrder ? "🔼" : "🔽";
+                typeSortIcon.textContent = typeSortOrder ? "▴" : "▾";
             }
         }
 
@@ -469,18 +498,7 @@ function searchFiles() {
         updateTime();
         setInterval(updateTime, 1000);
 
-        function updatePathColor() {
-            const body = document.body;
-            const pathElement = document.querySelector('.path-container span');
-            if (body.classList.contains('dark-mode')) {
-                pathElement.classList.add('path-color');
-                pathElement.classList.remove('light-mode');
-            } else {
-                pathElement.classList.remove('path-color');
-                pathElement.classList.add('light-mode');
-            }
-        }
-
+    
         window.onload = function () {
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'light') {
@@ -492,13 +510,42 @@ function searchFiles() {
         };
 
         function toggleMode() {
-            const body = document.body;
-            body.classList.toggle('light-mode');
-            body.classList.toggle('dark-mode');
-            const currentMode = body.classList.contains('light-mode') ? 'light' : 'dark';
-            localStorage.setItem('theme', currentMode);
-            updatePathColor();
-        }
+			const body = document.body;
+			const toggleButton = document.querySelector(".toogle");
+
+			// Toggle kelas untuk light dan dark mode
+			body.classList.toggle('light-mode');
+			body.classList.toggle('dark-mode');
+
+			// Tentukan mode saat ini dan simpan di localStorage
+			const currentMode = body.classList.contains('light-mode') ? 'light' : 'dark';
+			localStorage.setItem('theme', currentMode);
+
+			// Perbarui teks tombol berdasarkan mode
+			toggleButton.textContent = currentMode === 'light' ? 'Dark 🌙' : 'Light ☀️';
+
+			updatePathColor();
+		}
+
+		// Inisialisasi tema saat halaman dimuat
+		document.addEventListener("DOMContentLoaded", () => {
+			const savedTheme = localStorage.getItem('theme');
+			const body = document.body;
+			const toggleButton = document.querySelector(".toogle");
+
+			// Atur tema berdasarkan preferensi yang tersimpan
+			if (savedTheme === 'light') {
+				body.classList.add('light-mode');
+				body.classList.remove('dark-mode');
+				toggleButton.textContent = 'Dark 🌙';
+			} else {
+				body.classList.add('dark-mode');
+				body.classList.remove('light-mode');
+				toggleButton.textContent = 'Light ☀️';
+			}
+		});
+
+
 
         document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("loading").style.display = "none";
@@ -515,30 +562,26 @@ function searchFiles() {
     </div>
     <div class="container">
         <h1>File Explorer</h1>
-        <button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
-        <button onclick="goBack()" class="toogle" type="button">Back</button>
-        <p id="datetime"></p>
-        <div class="path-container">
-            <?php
-            $dir = './';
-            echo "Current Path: <span class='path-color light-mode'>" . realpath($dir) . "</span>";
-            ?>
-        </div>
+		<header>
+			<div class="info">
+				<p id="datetime"></p>
+			</div>
+			<div class="button">
+				<button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
+				<button onclick="goBack()" class="toogle" type="button">Back</button>
+			</div>
+		</header>
+        
         <div class="search-container">
             <input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
-            <button onclick="sortByName()">Filter Name <span id="nameSortIcon" class="sort-icon">🔼</span></button>
-            <button onclick="sortByDate()">Filter Date modified <span id="dateSortIcon"
-                    class="sort-icon">🔼</span></button>
-            <button onclick="sortBySize()">Filter Size <span id="sizeSortIcon" class="sort-icon">🔼</span></button>
-            <button onclick="sortByType()">Filter Type <span id="typeSortIcon" class="sort-icon">🔼</span></button>
         </div>
         <table class="file-table" id="fileTable">
             <thead>
                 <tr>
-                    <th onclick="sortByName()">Name <span id="nameSortIcon" class="sort-icon">🔼</span></th>
-                    <th onclick="sortByDate()">Date modified <span id="dateSortIcon" class="sort-icon">🔼</span></th>
-                    <th onclick="sortByType()">Type <span id="typeSortIcon" class="sort-icon">🔼</span></th>
-                    <th onclick="sortBySize()">Size <span id="sizeSortIcon" class="sort-icon">🔼</span></th>
+                    <th onclick="sortByName()">Name <span id="nameSortIcon" class="sort-icon">▴</span></th>
+                    <th onclick="sortByDate()">Date modified <span id="dateSortIcon" class="sort-icon">▴</span></th>
+                    <th onclick="sortByType()">Type <span id="typeSortIcon" class="sort-icon">▴</span></th>
+                    <th onclick="sortBySize()">Size <span id="sizeSortIcon" class="sort-icon">▴</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -592,14 +635,11 @@ function searchFiles() {
         </table>
     </div>
     <footer class="footer">
-        <strong>
-            <p>
-                &copy; 2024 <?php echo gethostname(); ?>. All rights reserved. <br /> <br />
-                <a href="https://github.com/lukman754/apache-autoindex-theme" target="__blank">
-                    CREATED BY LUKMAN754 & XNUVERS007
-                </a>
-            </p>
-        </strong>
+                <p>&copy; 2024 <?php echo gethostname(); ?>. All rights reserved.</p>
+                <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank">
+					Created by <span class="github-icon"><i class="fab fa-github"></i></span> Lukman754 & <span class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
+				</a>
+
     </footer>
 </body>
 
