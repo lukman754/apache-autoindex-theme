@@ -4,7 +4,7 @@
 <head>
     <meta name="description" content="file manager of htdocs or /var/www/html">
     <meta name="language" content="id">
-    <meta name="author" content="Xnuvers007 & Lukman754">
+    <meta name="author" content="Lukman754 & Xnuvers007">
     <meta name="keywords" content="htdocs,html,filemanager">
     <meta name="robots" content="index, follow">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,7 +27,7 @@
     <meta name="twitter:image" content=" " />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
     <title>File Manager Htdocs</title>
     <style>
@@ -42,34 +42,36 @@
 
 
         .footer {
-			display: block;
-			justify-content: space-between;
-			align-items: center;
-			text-align: center;
-			padding: 15px 20px;
-			font-size: 10px;
-		}
+            display: block;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            padding: 15px 20px;
+            font-size: 10px;
+        }
 
-		.footer p {
-			margin-bottom: 15px;
-		}
+        .footer p {
+            margin-bottom: 15px;
+        }
 
-		.footer a {
-			color: #fcd53f;
-			text-decoration: none;
-			background-color: #2d2d2d;
-			border-radius: 5px;
-			padding: 5px 10px;
-		}
+        .footer a {
+            color: #fcd53f;
+            text-decoration: none;
+            background-color: #2d2d2d;
+            border-radius: 5px;
+            padding: 5px 10px;
+        }
 
-		
-		.footer a:hover {
-			color: #ffb02e; /* Warna teks link saat di-hover */
-		}
 
-		.footer strong {
-			font-weight: normal; /* Set weight ke normal untuk konsistensi */
-		}
+        .footer a:hover {
+            color: #ffb02e;
+            /* Warna teks link saat di-hover */
+        }
+
+        .footer strong {
+            font-weight: normal;
+            /* Set weight ke normal untuk konsistensi */
+        }
 
 
         .container {
@@ -78,19 +80,19 @@
             padding: 20px;
         }
 
-		.search-container {
-			margin-bottom: 10px;
-		}
+        .search-container {
+            margin-bottom: 10px;
+        }
 
-		.search-container input[type="text"] {
-			width: 100%;
-			padding: 10px;
-			box-sizing: border-box;
-			border: 0;
-			border-radius: 4px;
-			background-color: #252526;
-			color: #d4d4d4;
-		}
+        .search-container input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 0;
+            border-radius: 4px;
+            background-color: #252526;
+            color: #d4d4d4;
+        }
 
 
         .search-container button .sort-icon {
@@ -104,7 +106,7 @@
             width: 100%;
             border-collapse: collapse;
             overflow-x: auto;
-			font-size: 12px;
+            font-size: 12px;
         }
 
         .file-table th,
@@ -241,55 +243,60 @@
             }
         }
 
-		body.light-mode {
-			background-color: #ffffff; /* Warna latar untuk tema terang */
-			color: #333333; /* Warna teks untuk tema terang */
-		}
+        body.light-mode {
+            background-color: #ffffff;
+            /* Warna latar untuk tema terang */
+            color: #333333;
+            /* Warna teks untuk tema terang */
+        }
 
-		body.dark-mode {
-			background-color: #1c1c1c; /* Warna latar untuk tema gelap */
-			color: #ffffff; /* Warna teks untuk tema gelap */
-		}
+        body.dark-mode {
+            background-color: #1c1c1c;
+            /* Warna latar untuk tema gelap */
+            color: #ffffff;
+            /* Warna teks untuk tema gelap */
+        }
 
-		header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			background-color: inherit; /* Ikuti warna latar body */
-		}
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: inherit;
+            /* Ikuti warna latar body */
+        }
 
-		.button {
-			display: flex;
-			gap: 10px;
-		}
+        .button {
+            display: flex;
+            gap: 10px;
+        }
 
-		.toogle {
-			padding: 8px 16px;
-			font-size: 14px;
-			background-color: #007bff;
-			color: #fff;
-			border: none;
-			border-radius: 4px;
-			cursor: pointer;
-		}
+        .toogle {
+            padding: 8px 16px;
+            font-size: 14px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
 
-		body.light-mode .toogle {
-			background-color: #2d2d2d;
-		}
+        body.light-mode .toogle {
+            background-color: #2d2d2d;
+        }
 
-		body.dark-mode .toogle {
-			background-color: #444;
-		}
+        body.dark-mode .toogle {
+            background-color: #444;
+        }
 
 
         .light-mode .toogle {
             padding: 8px 16px;
-			font-size: 14px;
-			background-color: #007bff;
-			color: #fff;
-			border: none;
-			border-radius: 4px;
-			cursor: pointer;
+            font-size: 14px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
 
         .toogle:hover {
@@ -337,44 +344,44 @@
         }
     </style>
     <script>
-function goBack() {
-    const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
-    const parentDir = currentDir.substring(0, currentDir.lastIndexOf('/')) || './';
-    window.location.href = '?dir=' + encodeURIComponent(parentDir);
-}
+        function goBack() {
+            const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+            const parentDir = currentDir.substring(0, currentDir.lastIndexOf('/')) || './';
+            window.location.href = '?dir=' + encodeURIComponent(parentDir);
+        }
 
 
-function searchFiles() {
-    var input, filter, table, tr, td, i, txtValue;
-    input = document.getElementById("searchInput");
-    filter = input.value.toUpperCase();
-    table = document.getElementById("fileTable");
-    tr = table.getElementsByTagName("tr");
+        function searchFiles() {
+            var input, filter, table, tr, td, i, txtValue;
+            input = document.getElementById("searchInput");
+            filter = input.value.toUpperCase();
+            table = document.getElementById("fileTable");
+            tr = table.getElementsByTagName("tr");
 
-    if (!filter) {
-        // If input is empty, redirect to the root or main folder
-        window.location.href = '?dir=./'; // Redirect to root folder
-        return;
-    }
+            if (!filter) {
+                // If input is empty, redirect to the root or main folder
+                window.location.href = '?dir=./'; // Redirect to root folder
+                return;
+            }
 
-    for (i = 1; i < tr.length; i++) {
-        td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
-        if (td) {
-            txtValue = td.textContent || td.innerText;
-            if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-                // Highlight only the matched text
-                const link = td.getElementsByTagName("a")[0];
-                if (link) {
-                    const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
-                    link.innerHTML = highlightedText;
+            for (i = 1; i < tr.length; i++) {
+                td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
+                if (td) {
+                    txtValue = td.textContent || td.innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                        // Highlight only the matched text
+                        const link = td.getElementsByTagName("a")[0];
+                        if (link) {
+                            const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
+                            link.innerHTML = highlightedText;
+                        }
+                    } else {
+                        tr[i].style.display = "none";
+                    }
                 }
-            } else {
-                tr[i].style.display = "none";
             }
         }
-    }
-}
 
         function parseSize(sizeStr) {
             let size = parseFloat(sizeStr);
@@ -498,7 +505,7 @@ function searchFiles() {
         updateTime();
         setInterval(updateTime, 1000);
 
-    
+
         window.onload = function () {
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'light') {
@@ -510,40 +517,40 @@ function searchFiles() {
         };
 
         function toggleMode() {
-			const body = document.body;
-			const toggleButton = document.querySelector(".toogle");
+            const body = document.body;
+            const toggleButton = document.querySelector(".toogle");
 
-			// Toggle kelas untuk light dan dark mode
-			body.classList.toggle('light-mode');
-			body.classList.toggle('dark-mode');
+            // Toggle kelas untuk light dan dark mode
+            body.classList.toggle('light-mode');
+            body.classList.toggle('dark-mode');
 
-			// Tentukan mode saat ini dan simpan di localStorage
-			const currentMode = body.classList.contains('light-mode') ? 'light' : 'dark';
-			localStorage.setItem('theme', currentMode);
+            // Tentukan mode saat ini dan simpan di localStorage
+            const currentMode = body.classList.contains('light-mode') ? 'light' : 'dark';
+            localStorage.setItem('theme', currentMode);
 
-			// Perbarui teks tombol berdasarkan mode
-			toggleButton.textContent = currentMode === 'light' ? 'Dark 🌙' : 'Light ☀️';
+            // Perbarui teks tombol berdasarkan mode
+            toggleButton.textContent = currentMode === 'light' ? 'Dark 🌙' : 'Light ☀️';
 
-			updatePathColor();
-		}
+            updatePathColor();
+        }
 
-		// Inisialisasi tema saat halaman dimuat
-		document.addEventListener("DOMContentLoaded", () => {
-			const savedTheme = localStorage.getItem('theme');
-			const body = document.body;
-			const toggleButton = document.querySelector(".toogle");
+        // Inisialisasi tema saat halaman dimuat
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTheme = localStorage.getItem('theme');
+            const body = document.body;
+            const toggleButton = document.querySelector(".toogle");
 
-			// Atur tema berdasarkan preferensi yang tersimpan
-			if (savedTheme === 'light') {
-				body.classList.add('light-mode');
-				body.classList.remove('dark-mode');
-				toggleButton.textContent = 'Dark 🌙';
-			} else {
-				body.classList.add('dark-mode');
-				body.classList.remove('light-mode');
-				toggleButton.textContent = 'Light ☀️';
-			}
-		});
+            // Atur tema berdasarkan preferensi yang tersimpan
+            if (savedTheme === 'light') {
+                body.classList.add('light-mode');
+                body.classList.remove('dark-mode');
+                toggleButton.textContent = 'Dark 🌙';
+            } else {
+                body.classList.add('dark-mode');
+                body.classList.remove('light-mode');
+                toggleButton.textContent = 'Light ☀️';
+            }
+        });
 
 
 
@@ -562,16 +569,16 @@ function searchFiles() {
     </div>
     <div class="container">
         <h1>File Explorer</h1>
-		<header>
-			<div class="info">
-				<p id="datetime"></p>
-			</div>
-			<div class="button">
-				<button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
-				<button onclick="goBack()" class="toogle" type="button">Back</button>
-			</div>
-		</header>
-        
+        <header>
+            <div class="info">
+                <p id="datetime"></p>
+            </div>
+            <div class="button">
+                <button onclick="toggleMode()" class="toogle" type="button">Toggle Light/Dark Mode</button>
+                <button onclick="goBack()" class="toogle" type="button">Back</button>
+            </div>
+        </header>
+
         <div class="search-container">
             <input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
         </div>
@@ -609,13 +616,13 @@ function searchFiles() {
                 }
                 $currentDir = isset($_GET['dir']) ? $_GET['dir'] : './';
                 $files = array_diff(scandir($currentDir), array('.', '..'));
-                
+
                 foreach ($files as $file) {
                     $filePath = $currentDir . '/' . $file;
                     $fileSize = is_dir($filePath) ? humanFileSize(getFolderSize($filePath)) : humanFileSize(filesize($filePath));
                     $fileDate = date("F d Y H:i:s.", filemtime($filePath));
                     $fileType = filetype($filePath);
-                
+
                     echo "<tr>";
                     if (is_dir($filePath)) {
                         echo "<td class='folder-icon'><a href='?dir=" . urlencode($filePath) . "'>$file</a></td>";
@@ -630,15 +637,16 @@ function searchFiles() {
                     }
                     echo "</tr>";
                 }
-                            ?>
+                ?>
             </tbody>
         </table>
     </div>
     <footer class="footer">
-                <p>&copy; 2024 <?php echo gethostname(); ?>. All rights reserved.</p>
-                <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank">
-					Created by <span class="github-icon"><i class="fab fa-github"></i></span> Lukman754 & <span class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
-				</a>
+        <p>&copy; 2024 <?php echo gethostname(); ?>. All rights reserved.</p>
+        <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank">
+            Created by <span class="github-icon"><i class="fab fa-github"></i></span> Lukman754 & <span
+                class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
+        </a>
 
     </footer>
 </body>
