@@ -8,7 +8,7 @@ This guide will walk you through the installation process for the **Apache Autoi
 1. [Installation Options](#installation-options)
    - [Option 1: Using the Install.bat Script](#option-1-using-the-installbat-script)
    - [Option 2: Using Git (For Git Users)](#option-2-using-git-for-git-users)
-   - [Option 3: Manual Installation via PowerShell](#option-3-manual-installation-via-powershell)
+   - [Option 3: Manual Installation via Command Prompt](#option-3-manual-installation-via-command-prompt)
 2. [Installation Process](#installation-process)
 3. [Before Installation](#before-installation)
 4. [After Installation](#after-installation)
@@ -46,9 +46,9 @@ If you prefer using Git, follow these steps:
 
 ---
 
-### **Option 3: Manual Installation via PowerShell**
+### **Option 3: Manual Installation via Command Prompt**
 
-Alternatively, you can use a PowerShell command to download and run the `install.bat` file automatically:
+Alternatively, you can use a Command Prompt, command to download and run the `install.bat` file automatically:
 
 1. **Open Command Prompt (NOT PowerShell)** and enter the following command:
 
