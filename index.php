@@ -642,13 +642,11 @@
         </table>
     </div>
     <footer class="footer">
-        <p>&copy; 2024 <?php echo gethostname(); ?>. All rights reserved.</p>
+        <p>&copy; <?php echo date('Y'); ?> <?php echo gethostname(); ?>. All rights reserved.</p>
         <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank">
             Created by <span class="github-icon"><i class="fab fa-github"></i></span> Lukman754 & <span
                 class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
         </a>
-
     </footer>
 </body>
-
 </html>
