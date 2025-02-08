@@ -642,8 +642,8 @@
         </table>
     </div>
     <footer class="footer">
-        <p>&copy; <?php echo date('Y'); ?> <?php echo gethostname(); ?>. All rights reserved.</p>
-        <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank">
+        <p>&copy; <?php echo htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8'); ?> <?php echo htmlspecialchars(gethostname(), ENT_QUOTES, 'UTF-8'); ?>. All rights reserved.</p>
+        <a href="https://github.com/lukman754/apache-autoindex-theme" target="_blank" rel="noopener noreferrer">
             Created by <span class="github-icon"><i class="fab fa-github"></i></span> Lukman754 & <span
                 class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
         </a>
