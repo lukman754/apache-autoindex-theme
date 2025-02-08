@@ -2,6 +2,21 @@
 
 This guide will walk you through the installation process for the **Apache Autoindex Theme**. The theme enhances your local Apache directory index with a sleek and modern design.
 
+---
+
+## **Table of Contents**
+1. [Installation Options](#installation-options)
+   - [Option 1: Using the Install.bat Script](#option-1-using-the-installbat-script)
+   - [Option 2: Using Git (For Git Users)](#option-2-using-git-for-git-users)
+   - [Option 3: Manual Installation via PowerShell](#option-3-manual-installation-via-powershell)
+2. [Installation Process](#installation-process)
+3. [Before Installation](#before-installation)
+4. [After Installation](#after-installation)
+5. [Troubleshooting](#troubleshooting)
+6. [Thank You!](#special-thanks-to)
+
+---
+
 ## **Installation Options**
 
 ### **Option 1: Using the Install.bat Script**
@@ -65,7 +80,7 @@ This is what your local directory index will look like before the theme is appli
 
 ### **After Installation:**
 
-![After Installation](https://github.com/user-attachments/assets/816a70df-49ff-4edf-949f-9900e0f9edbf)
+![After Installation](https://github.com/lukman754/localhost-dashboard/assets/43158553/be525a07-bc7f-4231-841e-bd6a63300a73)
 
 After the installation, your directory will have a modern, clean look, making your local development environment more professional and visually appealing.
 
@@ -77,9 +92,9 @@ After the installation, your directory will have a modern, clean look, making yo
 - If the `install.bat` file doesn't run automatically, make sure your **Antivirus** or **Firewall** isn't blocking the script.
 
 
-# Enjoy your enhanced Apache Autoindex theme! 🎉
+Enjoy your enhanced Apache Autoindex theme!
 
-special thank to:
+# special thanks to
 1. [God](https://en.wikipedia.org/wiki/God) or [Allah SWT.](https://en.wikipedia.org/wiki/Allah)
 2. [Prophet](https://en.wikipedia.org/wiki/Prophet) or [Muhammad SAW](https://en.wikipedia.org/wiki/Muhammad)
 3. [Parents](https://static.vecteezy.com/system/resources/previews/020/872/296/original/illustration-of-a-mother-father-and-child-hugging-together-happy-family-concept-illustration-vector.jpg)
