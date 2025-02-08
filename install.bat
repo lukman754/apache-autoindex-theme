@@ -30,7 +30,6 @@ echo Date: %date%
 echo Time: %time%
 echo User: %username%
 echo Current Directory: %cd%
-echo %DOWNLOAD_PATH%
 echo.
 echo NOTE: Pastikan Anda menjalankan script ini sebagai Administrator/Double klik kiri
 echo Rekomendasi: Install XAMPP di C:\xampp or C:\
