@@ -65,7 +65,7 @@ This is what your local directory index will look like before the theme is appli
 
 ### **After Installation:**
 
-![After Installation](https://github.com/lukman754/localhost-dashboard/assets/43158553/be525a07-bc7f-4231-841e-bd6a63300a73)
+![After Installation](https://github.com/user-attachments/assets/816a70df-49ff-4edf-949f-9900e0f9edbf)
 
 After the installation, your directory will have a modern, clean look, making your local development environment more professional and visually appealing.
 
