@@ -21,15 +21,19 @@ cls
 echo =============================================
 echo Pilih opsi yang ingin Anda lakukan:
 echo 1. Instalasi XAMPP
-echo 2. Modifikasi index.php di C:\xampp\htdocs
-echo 3. Backup dan Restore
-echo 4. Keluar
+echo 2. Instalasi Laragon
+echo 3. Modifikasi index.php di C:\xampp\htdocs
+echo 4. Backup dan Restore
+echo 5. Keluar
 echo =============================================
 echo.
 echo Date: %date%
 echo Time: %time%
 echo User: %username%
 echo Current Directory: %cd%
+echo Download Path: %DOWNLOAD_PATH%
+echo XAMPP Path: %XAMPP_PATH%
+echo Htdocs Path: %HTDOCS_PATH%
 echo.
 echo NOTE: Pastikan Anda menjalankan script ini sebagai Administrator/Double klik kiri
 echo Rekomendasi: Install XAMPP di C:\xampp or C:\
@@ -38,12 +42,58 @@ echo =============================================
 set /p choice="Masukkan pilihan Anda (1, 2, 3, atau 4): "
 
 if "%choice%"=="1" goto install
-if "%choice%"=="2" goto modify
-if "%choice%"=="3" goto backup_menu
-if "%choice%"=="4" exit
+if "%choice%"=="2" goto laragon
+if "%choice%"=="3" goto modify
+if "%choice%"=="4" goto backup_menu
+if "%choice%"=="5" exit
 echo Pilihan tidak valid, silakan coba lagi.
 pause
 goto menu
+
+:laragon
+cls
+echo =============================================
+echo Instalasi Laragon
+echo =============================================
+echo Pilih versi Laragon yang ingin diinstal:
+echo 1. Laragon Full
+echo 2. Laragon Lite
+echo =============================================
+set /p laragon_version="Masukkan pilihan versi (1 atau 2): "
+
+if "%laragon_version%"=="1" (
+    if exist "%DOWNLOAD_PATH%\laragon-wamp.exe" (
+        echo File Laragon WAMP sudah ada di direktori, melewati pengunduhan.
+    ) else (
+        echo Mengunduh Laragon WAMP...
+        powershell -Command "$wc = New-Object net.webclient; $wc.DownloadFile('https://github.com/leokhoa/laragon/releases/download/7.0.6/laragon-wamp.exe', '%DOWNLOAD_PATH%\laragon-wamp.exe')"
+    )
+    
+    echo Menginstal Laragon WAMP...
+    start /wait "%DOWNLOAD_PATH%\laragon-wamp.exe"
+    
+    echo Instalasi selesai.
+    pause
+    goto menu
+) else if "%laragon_version%"=="2" (
+    if exist "%DOWNLOAD_PATH%\laragon.exe" (
+        echo File Laragon Full sudah ada di direktori, melewati pengunduhan.
+    ) else (
+        echo Mengunduh Laragon Full...
+        powershell -Command "$wc = New-Object net.webclient; $wc.DownloadFile('https://github.com/leokhoa/laragon/releases/download/7.0.6/laragon.exe', '%DOWNLOAD_PATH%\laragon.exe')"
+    )
+    
+    echo Menginstal Laragon Full...
+    start /wait "%DOWNLOAD_PATH%\laragon.exe"
+    
+    echo Instalasi selesai.
+    pause
+    goto menu
+) else (
+    echo Pilihan tidak valid, silakan coba lagi.
+    pause
+    goto laragon
+)
 
 :install
 cls
@@ -94,7 +144,7 @@ if not exist "%DOWNLOAD_PATH%\xampp-installer-%XAMPP_VERSION%.exe" (
 )
 
 echo Menginstal XAMPP %XAMPP_VERSION%...
-start /wait xampp-installer.exe
+start /wait '%DOWNLOAD_PATH%\xampp-installer-%XAMPP_VERSION%.exe'
 
 echo Instalasi selesai.
 pause
