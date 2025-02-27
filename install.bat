@@ -215,7 +215,7 @@ echo Mengunduh XAMPP %XAMPP_VERSION%...
 
 @REM powershell -Command "$wc = New-Object net.webclient; $wc.Downloadfile('%XAMPP_URL%', '%DOWNLOAD_PATH%\xampp-installer-%XAMPP_VERSION%.exe')"
 
-set /p TanyaDownloadXAMPP="Anda ingin mendownload methode apa ? (1. powershell, 2. curl, 3. wget, 4. bitsadmin): "
+set /p TanyaDownloadXAMPP="Anda ingin mendownload methode apa ? (1. powershell (Recommendation), 2. curl, 3. wget, 4. bitsadmin): "
 if "%TanyaDownloadXAMPP%"=="1" (
     powershell -Command "$wc = New-Object net.webclient; $wc.Downloadfile('%XAMPP_URL%', '%DOWNLOAD_PATH%\xampp-installer-%XAMPP_VERSION%.exe')"
 ) else if "%TanyaDownloadXAMPP%"=="2" (
@@ -281,7 +281,7 @@ echo Mengunduh file index.php dari GitHub...
 
 @REM powershell -Command "$wc = New-Object net.webclient; $wc.Downloadfile('https://raw.githubusercontent.com/lukman754/apache-autoindex-theme/refs/heads/main/index.php', 'index.php')"
 
-set /p TanyaDownloadIndex="Anda ingin mendownload methode apa ? (1. powershell, 2. curl, 3. wget, 4. bitsadmin): "
+set /p TanyaDownloadIndex="Anda ingin mendownload methode apa ? (1. powershell (Recommendation), 2. curl, 3. wget, 4. bitsadmin): "
 if "%TanyaDownloadIndex%"=="1" (
     powershell -Command "$wc = New-Object net.webclient; $wc.Downloadfile('https://raw.githubusercontent.com/lukman754/apache-autoindex-theme/refs/heads/main/index.php', 'index.php')"
 ) else if "%TanyaDownloadIndex%"=="2" (
@@ -300,7 +300,11 @@ echo Membuat backup index.php yang ada...
 if exist "%HTDOCS_PATH%\index.php" (
     copy "%HTDOCS_PATH%\index.php" "%HTDOCS_PATH%\index.php.bak"
     echo Backup index.php berhasil dibuat.
-) else if exist "%LARAGON_APACHE_PATH%\index.php" (
+) else (
+    echo File index.php tidak ditemukan, tidak ada backup yang dibuat.
+)
+
+if exist "%LARAGON_APACHE_PATH%\index.php" (
     copy "%LARAGON_APACHE_PATH%\index.php" "%LARAGON_APACHE_PATH%\index.php.bak"
     echo Backup index.php berhasil dibuat.
 ) else (
@@ -310,7 +314,11 @@ if exist "%HTDOCS_PATH%\index.php" (
 echo Menyalin file index.php yang baru ke %HTDOCS_PATH%...
 if exist "%HTDOCS_PATH%" (
     copy index.php "%HTDOCS_PATH%\index.php"
-) else if exist "%LARAGON_APACHE_PATH%" (
+) else (
+    echo Error: Path tidak ditemukan.
+)
+
+if exist "%LARAGON_APACHE_PATH%" (
     copy index.php "%LARAGON_APACHE_PATH%\index.php"
 ) else (
     echo Error: Path tidak ditemukan.
