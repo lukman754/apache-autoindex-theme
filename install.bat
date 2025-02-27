@@ -23,19 +23,19 @@ if exist "%CONFIG_FILE%" (
     echo File konfigurasi tidak ditemukan. Silakan masukkan path untuk pertama kali...
 
     set /p XAMPP_PATH="Masukkan path XAMPP (default: C:\xampp): "
-    if not defined XAMPP_PATH set "XAMPP_PATH=C:\xampp"
+    if not defined XAMPP_PATH set "XAMPP_PATH="
 
     set /p HTDOCS_PATH="Masukkan path HTDOCS (default: %XAMPP_PATH%\htdocs): "
-    if not defined HTDOCS_PATH set "HTDOCS_PATH=%XAMPP_PATH%\htdocs"
+    if not defined HTDOCS_PATH set "HTDOCS_PATH="
 
     set /p DOWNLOAD_PATH="Masukkan path Download (default: C:\users\%username%\Downloads): "
     if not defined DOWNLOAD_PATH set "DOWNLOAD_PATH=C:\users\%username%\Downloads"
 
     set /p LARAGON_PATH="Masukkan path Laragon (default: C:\laragon): "
-    if not defined LARAGON_PATH set "LARAGON_PATH=C:\laragon"
+    if not defined LARAGON_PATH set "LARAGON_PATH="
 
     set /p LARAGON_APACHE_PATH="Masukkan path Apache Laragon (default: %LARAGON_PATH%\www): "
-    if not defined LARAGON_APACHE_PATH set "LARAGON_APACHE_PATH=%LARAGON_PATH%\www"
+    if not defined LARAGON_APACHE_PATH set "LARAGON_APACHE_PATH="
 
     :: Simpan path ke dalam file konfigurasi agar bersifat permanen
     echo @echo off > "%CONFIG_FILE%"
