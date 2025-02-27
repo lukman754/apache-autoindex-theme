@@ -24,10 +24,11 @@ This guide will walk you through the installation process for the **Apache Autoi
 1. **Download the Install.bat File:**
    - Click the link below to download the installation script:
    [Download install.bat](https://github.com/lukman754/apache-autoindex-theme/blob/main/install.bat)
+
+- Before run the Install.bat Script, user need to fill information in this file [config.bat](https://github.com/lukman754/apache-autoindex-theme/blob/d5269dda43bb464fe2949afeeee23ac8c3b933b1/config.bat#L1)
    
 2. **Run the Install.bat Script:**
    - After downloading, double-click the `install.bat` file to begin the installation.
-
 ---
 
 ### **Option 2: Using Git (For Git Users)**
