@@ -264,6 +264,16 @@ if not exist "%HTDOCS_PATH%" (
     echo Please check your XAMPP installation.
     pause
     goto menu
+) else if not exist "%LARAGON_APACHE_PATH%" (
+    echo Error: Laragon installation not found at %LARAGON_PATH%
+    echo Please install Laragon first.
+    pause
+    goto menu
+) else if not exist "%LARAGON_APACHE_PATH%\index.php" (
+    echo Error: index.php not found at %LARAGON_APACHE_PATH%
+    echo Please check your Laragon installation.
+    pause
+    goto menu
 )
 
 echo Mengunduh file index.php dari GitHub...
@@ -319,8 +329,8 @@ echo =============================================
 echo Pilih opsi yang ingin Anda lakukan:
 echo 1. Create Backup (Semua)
 echo 2. Restore Backup (Semua)
-echo 3. Create Backup files website (From htdocs)
-echo 4. Restore Backup files website (To htdocs)
+echo 3. Create Backup files website (backup htdocs and MySQL)
+echo 4. Restore Backup files website (restore htdocs and MySQL)
 echo 5. Manual Backup (Folder/File)
 echo 6. Kembali ke menu utama
 echo =============================================
@@ -350,9 +360,18 @@ if /i "%create_folder%"=="y" (
     set /p folder_location="Masukkan lokasi folder backup: "
     if not exist "%folder_location%" mkdir "%folder_location%"
 ) else (
-    set "folder_location=%XAMPP_PATH%\backup"
-    if not exist "%XAMPP_PATH%\backup" mkdir "%XAMPP_PATH%\backup"
-    if not exist "%LARAGON_PATH%\backup" mkdir "%LARAGON_PATH%\backup"
+    set /p "folder_location=Xampp atau Laragon? (1. Xampp, 2. Laragon): "
+    if "%folder_location%"=="1" (
+        set "folder_location=%XAMPP_PATH%\backup"
+        if not exist "%XAMPP_PATH%\backup" mkdir "%XAMPP_PATH%\backup"
+    ) else if "%folder_location%"=="2" (
+        set "folder_location=%LARAGON_PATH%\backup"
+        if not exist "%LARAGON_PATH%\backup" mkdir "%LARAGON_PATH%\backup"
+    ) else (
+        echo Pilihan tidak valid, silakan coba lagi.
+        pause
+        goto create_backup_files
+    )
 )
 
 set "BACKUP_FILE_XAMPP=%folder_location%\xampp_backup_%DATE_STR%.zip"
@@ -452,23 +471,39 @@ if /i "%create_folder%"=="y" (
     set /p folder_location="Masukkan lokasi folder backup: "
     if not exist "%folder_location%" mkdir "%folder_location%"
 ) else (
-    set "folder_location=%XAMPP_PATH%\backup"
-    if not exist "%XAMPP_PATH%\backup" mkdir "%XAMPP_PATH%\backup"
-    if not exist "%LARAGON_PATH%\backup" mkdir "%LARAGON_PATH%\backup"
+    
+    set /p "folder_location=Xampp atau Laragon? (1. Xampp, 2. Laragon): "
+    if "%folder_location%"=="1" (
+        set "folder_location=%XAMPP_PATH%\backup"
+        if not exist "%XAMPP_PATH%\backup" mkdir "%XAMPP_PATH%\backup"
+    ) else if "%folder_location%"=="2" (
+        set "folder_location=%LARAGON_PATH%\backup"
+        if not exist "%LARAGON_PATH%\backup" mkdir "%LARAGON_PATH%\backup"
+    ) else (
+        echo Pilihan tidak valid, silakan coba lagi.
+        pause
+        goto create_backup_files
+    )
+    
+    if not exist "%folder_location%" mkdir "%folder_location%"
 )
 
 @REM set "BACKUP_FILE_XAMPP=%XAMPP_PATH%\backup\files_backup_%DATE_STR%.zip"
 @REM set "BACKUP_FILE_LARAGON=%LARAGON_PATH%\backup\files_backup_%DATE_STR%.zip"
 
-set "BACKUP_FILE_XAMPP=%folder_location%\files_backup_%DATE_STR%.zip"
-set "BACKUP_FILE_LARAGON=%folder_location%\files_backup_%DATE_STR%.zip"
+set "BACKUP_FILE_XAMPP=%folder_location%\xampp_htdocs_files_backup_%DATE_STR%.zip"
+set "BACKUP_FILE_LARAGON=%folder_location%\laragon_htdocs_files_backup_%DATE_STR%.zip"
+set "BACKUP_FILE_XAMPP_SQL=%folder_location%\xampp_mysql_backup_%DATE_STR%.zip"
+set "BACKUP_FILE_LARAGON_SQL=%folder_location%\laragon_mysql_backup_%DATE_STR%.zip"
 
 if exist "%HTDOCS_PATH%" (
-    powershell -Command "Compress-Archive -Path '%HTDOCS_PATH%','%XAMPP_PATH%\mysql\data' -DestinationPath '%BACKUP_FILE_XAMPP%' -Force -CompressionLevel Fastest"
+    powershell -Command "Compress-Archive -Path '%HTDOCS_PATH%' -DestinationPath '%BACKUP_FILE_XAMPP%' -Force -CompressionLevel Fastest"
+    powershell -Command "Compress-Archive -Path '%XAMPP_PATH%\mysql\data' -DestinationPath '%BACKUP_FILE_XAMPP_SQL%' -Force -CompressionLevel Fastest"
     echo Backup created at %BACKUP_FILE_XAMPP%
 )
 if exist "%LARAGON_APACHE_PATH%" (
-    powershell -Command "Compress-Archive -Path '%LARAGON_APACHE_PATH%', '%LARAGON_PATH%\data' -DestinationPath '%BACKUP_FILE_LARAGON%' -Force -CompressionLevel Fastest"
+    powershell -Command "Compress-Archive -Path '%LARAGON_APACHE_PATH%' -DestinationPath '%BACKUP_FILE_LARAGON%' -Force -CompressionLevel Fastest"
+    powershell -Command "Compress-Archive -Path '%LARAGON_PATH%\data' -DestinationPath '%BACKUP_FILE_LARAGON_SQL%' -Force -CompressionLevel Fastest"
     echo Backup created at %BACKUP_FILE_LARAGON%
 )
 if not exist "%HTDOCS_PATH%" if not exist "%LARAGON_APACHE_PATH%" (
@@ -488,7 +523,12 @@ set /p "locate_backup=Masukkan lokasi backup (C:\xampp\backup\ or C:\laragon\bac
 
 if not defined locate_backup (
     set "locate_backup=%XAMPP_PATH%\backup"
-    if not exist "%locate_backup%" set "locate_backup=%LARAGON_PATH%\backup"
+)
+
+@REM jika tidak ada xampp maka otomatis ke laragon
+
+if not exist "%locate_backup%" (
+    set "locate_backup=%LARAGON_PATH%\backup"
 )
 
 if not exist "%locate_backup%" (
@@ -497,22 +537,50 @@ if not exist "%locate_backup%" (
     goto backup_menu
 )
 
-dir /b /a-d "%locate_backup%\files_backup_*.zip"
+dir /b /a-d "%locate_backup%\xampp_htdocs_files_backup_*.zip"
+dir /b /a-d "%locate_backup%\laragon_htdocs_files_backup_*.zip"
+dir /b /a-d "%locate_backup%\xampp_mysql_backup_*.zip"
+dir /b /a-d "%locate_backup%\laragon_mysql_backup_*.zip"
 
 set /p "RESTORE_FILE=Masukkan nama file backup files yang ingin dipulihkan: "
 
+@REM set "backup_file_path=%locate_backup%\%RESTORE_FILE%"
 set "backup_file_path=%locate_backup%\%RESTORE_FILE%"
 
-if exist "%backup_file_path%" (
-    if exist "%XAMPP_PATH%\backup\%RESTORE_FILE%" (
+if "%locate_backup%"=="%XAMPP_PATH%\backup" (
+    set "backup_file_path=%XAMPP_PATH%\backup\%RESTORE_FILE%"
+    set /p "restore_mysql=Apakah Anda ingin merestore database MySQL? (y/n): "
+    if /i "%restore_mysql%"=="y" (
+        powershell -Command "Expand-Archive -Path '%backup_file_path%' -DestinationPath '%XAMPP_PATH%' -Force"
+        echo Backup files restored to %XAMPP_PATH%.
+    ) else (
+        echo Database MySQL tidak di-restore.
+    )
+    set /p "restore_htdocs=Apakah Anda ingin merestore files website? (y/n): "
+    if /i "%restore_htdocs%"=="y" (
         powershell -Command "Expand-Archive -Path '%backup_file_path%' -DestinationPath '%HTDOCS_PATH%' -Force"
         echo Backup files restored to %HTDOCS_PATH%.
-    ) else if exist "%LARAGON_PATH%\backup\%RESTORE_FILE%" (
+    ) else (
+        echo Files website tidak di-restore.
+    )
+) else if "%locate_backup%"=="%LARAGON_PATH%\backup" (
+    set "backup_file_path=%LARAGON_PATH%\backup\%RESTORE_FILE%"
+    set /p "restore_mysql=Apakah Anda ingin merestore database MySQL? (y/n): "
+    if /i "%restore_mysql%"=="y" (
+        powershell -Command "Expand-Archive -Path '%backup_file_path%' -DestinationPath '%LARAGON_PATH%' -Force"
+        echo Backup files restored to %LARAGON_PATH%.
+    ) else (
+        echo Database MySQL tidak di-restore.
+    )
+    set /p "restore_htdocs=Apakah Anda ingin merestore files website? (y/n): "
+    if /i "%restore_htdocs%"=="y" (
         powershell -Command "Expand-Archive -Path '%backup_file_path%' -DestinationPath '%LARAGON_APACHE_PATH%' -Force"
         echo Backup files restored to %LARAGON_APACHE_PATH%.
+    ) else (
+        echo Files website tidak di-restore.
     )
 ) else (
-    echo File backup files tidak ditemukan.
+    echo Error: Path tidak ditemukan.
 )
 
 pause
