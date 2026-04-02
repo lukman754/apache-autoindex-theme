@@ -78,6 +78,194 @@ function isAllowedFile($file, $allowedExtensions)
     return in_array(strtolower($extension), $allowedExtensions);
 }
 
+function isPathInsideBase($path, $baseDir)
+{
+    $realBaseDir = realpath($baseDir);
+    $realPath = realpath($path);
+
+    if ($realBaseDir === false || $realPath === false) {
+        return false;
+    }
+
+    $realBaseDir = rtrim($realBaseDir, DIRECTORY_SEPARATOR);
+    $realPath = rtrim($realPath, DIRECTORY_SEPARATOR);
+
+    return $realPath === $realBaseDir || strpos($realPath, $realBaseDir . DIRECTORY_SEPARATOR) === 0;
+}
+
+function addPathToZip(ZipArchive $zip, $path, $localName)
+{
+    if (is_file($path)) {
+        $zip->addFile($path, $localName);
+        return;
+    }
+
+    if (!is_dir($path)) {
+        return;
+    }
+
+    $zip->addEmptyDir($localName);
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $relativePath = $localName . '/' . substr($item->getPathname(), strlen($path) + 1);
+
+        if ($item->isDir()) {
+            $zip->addEmptyDir($relativePath);
+        } else {
+            $zip->addFile($item->getPathname(), $relativePath);
+        }
+    }
+}
+
+function sendJsonResponse(array $data, int $statusCode = 200)
+{
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode($data);
+    exit;
+}
+
+function sanitizeZipFilename($name)
+{
+    $name = trim((string) $name);
+    $name = preg_replace('/[^A-Za-z0-9 _-]+/', '', $name);
+    $name = preg_replace('/\s+/', '_', $name);
+    $name = trim($name, '._-');
+
+    if ($name === '') {
+        $name = 'selected_items_' . date('Ymd_His');
+    }
+
+    if (substr(strtolower($name), -4) !== '.zip') {
+        $name .= '.zip';
+    }
+
+    return $name;
+}
+
+function normalizeZipExtensionFilter($value)
+{
+    $value = strtolower(trim((string) $value));
+    if ($value === '') {
+        return [];
+    }
+
+    $parts = preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+    $extensions = [];
+
+    foreach ($parts as $part) {
+        $part = ltrim(trim($part), '.');
+        if ($part !== '') {
+            $extensions[] = $part;
+        }
+    }
+
+    return array_values(array_unique($extensions));
+}
+
+function matchesZipFilter($path, $filterType, array $extensions)
+{
+    if ($filterType === 'folders') {
+        return is_dir($path);
+    }
+
+    if ($filterType === 'files') {
+        return is_file($path);
+    }
+
+    if ($filterType === 'extension') {
+        if (!is_file($path) || count($extensions) === 0) {
+            return false;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        return in_array($extension, $extensions, true);
+    }
+
+    return true;
+}
+
+function collectZipEntries(
+    ZipArchive $zip,
+    $path,
+    $localName,
+    $includeRecursive,
+    $filterType,
+    array $extensions,
+    array &$stats
+)
+{
+    if (is_file($path)) {
+        if (!matchesZipFilter($path, $filterType, $extensions)) {
+            $stats['skipped']++;
+            return;
+        }
+
+        if ($zip->addFile($path, $localName)) {
+            $stats['entries']++;
+            $stats['bytes'] += filesize($path) ?: 0;
+        }
+
+        return;
+    }
+
+    if (!is_dir($path)) {
+        $stats['skipped']++;
+        return;
+    }
+
+    if (!$includeRecursive) {
+        if (matchesZipFilter($path, $filterType, $extensions)) {
+            if ($filterType !== 'files' && $zip->addEmptyDir($localName)) {
+                $stats['entries']++;
+            }
+        } else {
+            $stats['skipped']++;
+        }
+
+        return;
+    }
+
+    if ($filterType !== 'files' && $zip->addEmptyDir($localName)) {
+        $stats['entries']++;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $relativePath = $localName . '/' . substr($item->getPathname(), strlen($path) + 1);
+
+        if ($item->isDir()) {
+            if ($filterType !== 'files') {
+                if ($filterType === 'all' || $filterType === 'folders') {
+                    if ($zip->addEmptyDir($relativePath)) {
+                        $stats['entries']++;
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (!matchesZipFilter($item->getPathname(), $filterType, $extensions)) {
+            $stats['skipped']++;
+            continue;
+        }
+
+        if ($zip->addFile($item->getPathname(), $relativePath)) {
+            $stats['entries']++;
+            $stats['bytes'] += $item->getSize();
+        }
+    }
+}
+
 $allowedExtensions = [
     'html', 'css', 'js', 'env', 'php', 'txt', 'json', 'xml', 'env', 'gitignore', 'md',
     'yml', 'yaml', 'ini', 'conf', 'log', 'htaccess', 'htpasswd', 'csv', 'tsv', 'sql',
@@ -190,6 +378,105 @@ if (isset($_GET['action'])) {
         }
         exit;
     }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['download_selected'])) {
+    $currentDir = $_POST['current_dir'] ?? './';
+    $selectedItems = $_POST['selected_items'] ?? [];
+    $zipFilename = sanitizeZipFilename($_POST['zip_filename'] ?? '');
+    $includeMode = $_POST['include_mode'] ?? 'selected';
+    $filterType = $_POST['filter_type'] ?? 'all';
+    $extensionFilter = normalizeZipExtensionFilter($_POST['filter_extensions'] ?? '');
+
+    if (!is_dir($currentDir)) {
+        sendJsonResponse(['ok' => false, 'message' => 'Invalid directory.'], 400);
+    }
+
+    if (!is_array($selectedItems) || count($selectedItems) === 0) {
+        sendJsonResponse(['ok' => false, 'message' => 'Pilih minimal satu folder/file.'], 400);
+    }
+
+    if (!in_array($includeMode, ['selected', 'recursive'], true)) {
+        $includeMode = 'selected';
+    }
+
+    if (!in_array($filterType, ['all', 'files', 'folders', 'extension'], true)) {
+        $filterType = 'all';
+    }
+
+    if ($filterType === 'extension' && count($extensionFilter) === 0) {
+        sendJsonResponse(['ok' => false, 'message' => 'Masukkan ekstensi file, misalnya php,js,css.'], 400);
+    }
+
+    $baseDirReal = realpath($currentDir);
+    if ($baseDirReal === false) {
+        sendJsonResponse(['ok' => false, 'message' => 'Gagal membaca direktori saat ini.'], 400);
+    }
+
+    $tempBase = tempnam(sys_get_temp_dir(), 'zip_');
+    $zipPath = $tempBase . '.zip';
+    unlink($tempBase);
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+        sendJsonResponse(['ok' => false, 'message' => 'Failed to create zip file.'], 500);
+    }
+
+    $stats = [
+        'entries' => 0,
+        'bytes' => 0,
+        'skipped' => 0,
+    ];
+
+    $addedNames = [];
+    foreach ($selectedItems as $selectedItem) {
+        $selectedPath = realpath($selectedItem);
+        if ($selectedPath === false) {
+            $stats['skipped']++;
+            continue;
+        }
+
+        if (!isPathInsideBase($selectedPath, $baseDirReal)) {
+            $stats['skipped']++;
+            continue;
+        }
+
+        $localName = ltrim(substr($selectedPath, strlen($baseDirReal)), DIRECTORY_SEPARATOR);
+        if ($localName === '') {
+            $localName = basename($selectedPath);
+        }
+
+        if (isset($addedNames[$localName])) {
+            continue;
+        }
+
+        $beforeEntries = $stats['entries'];
+        collectZipEntries($zip, $selectedPath, $localName, $includeMode === 'recursive', $filterType, $extensionFilter, $stats);
+        if ($stats['entries'] > $beforeEntries) {
+            $addedNames[$localName] = true;
+        }
+    }
+
+    $zip->close();
+
+    if ($stats['entries'] === 0 || !file_exists($zipPath)) {
+        if (file_exists($zipPath)) {
+            unlink($zipPath);
+        }
+        sendJsonResponse(['ok' => false, 'message' => 'Tidak ada item yang masuk ke ZIP. Cek filter atau pilihan folder kosong.'], 400);
+    }
+
+    logActivity('Downloaded ZIP for selected items in ' . $currentDir . ' | entries=' . $stats['entries'] . ' | bytes=' . $stats['bytes']);
+
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $zipFilename . '"');
+    header('Content-Length: ' . filesize($zipPath));
+    header('X-Zip-Item-Count: ' . $stats['entries']);
+    header('X-Zip-Total-Bytes: ' . $stats['bytes']);
+    header('X-Zip-Filename: ' . $zipFilename);
+    readfile($zipPath);
+    unlink($zipPath);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
@@ -381,22 +668,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
 
         .file-table th:nth-child(1),
         .file-table td:nth-child(1) {
-            width: 40%;
+            width: 4%;
+            text-align: center;
         }
 
         .file-table th:nth-child(2),
         .file-table td:nth-child(2) {
-            width: 25%;
+            width: 28%;
         }
 
         .file-table th:nth-child(3),
         .file-table td:nth-child(3) {
-            width: 20%;
+            width: 22%;
         }
 
         .file-table th:nth-child(4),
         .file-table td:nth-child(4) {
-            width: 15%;
+            width: 12%;
+        }
+
+        .file-table th:nth-child(5),
+        .file-table td:nth-child(5) {
+            width: 10%;
+        }
+
+        .file-table th:nth-child(6),
+        .file-table td:nth-child(6),
+        .file-table th:nth-child(7),
+        .file-table td:nth-child(7),
+        .file-table th:nth-child(8),
+        .file-table td:nth-child(8) {
+            width: 8%;
         }
 
         .grey-text {
@@ -589,6 +891,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
     color: #000;
     font-weight: bold;
 }
+
+        .zip-toolbar {
+            margin-bottom: 12px;
+            padding: 12px;
+            border: 1px solid #2d2d2d;
+            border-radius: 8px;
+            background: #252526;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .zip-toolbar input,
+        .zip-toolbar select {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 8px 10px;
+        }
+
+        .zip-toolbar .zip-field {
+            min-width: 170px;
+        }
+
+        .zip-toolbar .zip-small-field {
+            min-width: 140px;
+        }
+
+        .zip-toolbar .zip-status {
+            color: #a0a0a0;
+            font-size: 12px;
+        }
+
+        .zip-progress-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .zip-progress-card {
+            background: #252526;
+            color: #d4d4d4;
+            border-radius: 10px;
+            padding: 24px 28px;
+            min-width: 280px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .zip-spinner {
+            width: 42px;
+            height: 42px;
+            margin: 0 auto 12px;
+            border: 4px solid rgba(255, 255, 255, 0.18);
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
     </style>
     <script>
         function goBack() {
@@ -612,7 +978,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
             }
 
             for (i = 1; i < tr.length; i++) {
-                td = tr[i].getElementsByTagName("td")[0]; // Targeting only the name cell
+                td = tr[i].getElementsByTagName("td")[1]; // Targeting only the name cell
                 if (td) {
                     txtValue = td.textContent || td.innerText;
                     if (txtValue.toUpperCase().indexOf(filter) > -1) {
@@ -652,8 +1018,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
                     x = rows[i].getElementsByTagName("TD")[columnIndex];
                     y = rows[i + 1].getElementsByTagName("TD")[columnIndex];
 
-                    let xValue = columnIndex === 3 ? parseSize(x.textContent) : x.textContent.toLowerCase();
-                    let yValue = columnIndex === 3 ? parseSize(y.textContent) : y.textContent.toLowerCase();
+                    let xValue = columnIndex === 4 ? parseSize(x.textContent) : x.textContent.toLowerCase();
+                    let yValue = columnIndex === 4 ? parseSize(y.textContent) : y.textContent.toLowerCase();
 
                     if (sortOrder) {
                         if (xValue > yValue) {
@@ -675,25 +1041,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
         }
 
         function sortByName() {
-            sortTable(0, nameSortOrder);
+            sortTable(1, nameSortOrder);
             nameSortOrder = !nameSortOrder;
             updateSortIcons();
         }
 
         function sortByDate() {
-            sortTable(1, dateSortOrder);
+            sortTable(2, dateSortOrder);
             dateSortOrder = !dateSortOrder;
             updateSortIcons();
         }
 
         function sortBySize() {
-            sortTable(3, sizeSortOrder);
+            sortTable(4, sizeSortOrder);
             sizeSortOrder = !sizeSortOrder;
             updateSortIcons();
         }
 
         function sortByType() {
-            sortTable(2, typeSortOrder);
+            sortTable(3, typeSortOrder);
             typeSortOrder = !typeSortOrder;
             updateSortIcons();
         }
@@ -900,31 +1266,151 @@ function deleteFile(filePath) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-    const fileTableBody = document.querySelector("#fileTable tbody");
-    const loadingIndicator = document.getElementById("loading");
+function selectAllFiles(checked) {
+    document.querySelectorAll("input[name='selected_items[]']").forEach(input => {
+        input.checked = checked;
+    });
 
-    const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = checked;
+    }
 
-    fetch(`?action=listFiles&dir=${encodeURIComponent(currentDir)}`)
-        .then(response => response.json())
-        .then(files => {
-            loadingIndicator.style.display = "none";
-            files.forEach(file => {
-                const row = document.createElement("tr");
-                // row.innerHTML = `
-                //     <td>${file.name}</td>
-                //     <td>${file.date}</td>
-                //     <td>${file.type}</td>
-                //     <td>${file.size}</td>
-                // `;
-                console.log(fileTableBody.appendChild(row));
-            });
-        })
-        .catch(error => console.error("Failed to load files:", error));
-});
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
+            const counter = document.getElementById('zipSelectedCount');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const allCheckboxes = document.querySelectorAll("input[name='selected_items[]']");
+
+            if (counter) {
+                counter.textContent = selectedCount + ' item dipilih';
+            }
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedCount === allCheckboxes.length;
+            }
+        }
+
+        function toggleExtensionField() {
+            const filterType = document.getElementById('filterType');
+            const extensionWrap = document.getElementById('extensionFilterWrap');
+            const extensionInput = document.getElementById('filterExtensions');
+
+            if (!filterType || !extensionWrap || !extensionInput) {
+                return;
+            }
+
+            const isExtensionFilter = filterType.value === 'extension';
+            extensionWrap.style.display = isExtensionFilter ? 'flex' : 'none';
+
+            if (!isExtensionFilter) {
+                extensionInput.value = '';
+            }
+        }
+
+        function formatBytes(bytes) {
+            const value = Number(bytes || 0);
+            if (value >= 1073741824) return (value / 1073741824).toFixed(2) + ' GB';
+            if (value >= 1048576) return (value / 1048576).toFixed(2) + ' MB';
+            if (value >= 1024) return (value / 1024).toFixed(2) + ' KB';
+            return value + ' bytes';
+        }
+
+        function showZipProgress(message) {
+            const overlay = document.getElementById('zipProgressOverlay');
+            const text = document.getElementById('zipProgressText');
+
+            if (overlay) {
+                overlay.style.display = 'flex';
+            }
+            if (text) {
+                text.textContent = message || 'Membuat ZIP...';
+            }
+        }
+
+        function hideZipProgress() {
+            const overlay = document.getElementById('zipProgressOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
+
+        async function handleZipDownload(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
+            const filterType = document.getElementById('filterType');
+            const extensionInput = document.getElementById('filterExtensions');
+
+            if (selectedCount === 0) {
+                alert('Pilih minimal satu folder/file.');
+                return;
+            }
+
+            if (filterType && filterType.value === 'extension' && extensionInput && !extensionInput.value.trim()) {
+                alert('Masukkan ekstensi file, misalnya php,js,css.');
+                return;
+            }
+
+            showZipProgress('Membuat ZIP, tunggu sebentar...');
+
+            try {
+                const response = await fetch(window.location.href.split('#')[0], {
+                    method: 'POST',
+                    body: new FormData(form)
+                });
+
+                const contentType = response.headers.get('Content-Type') || '';
+
+                if (!response.ok || contentType.includes('application/json')) {
+                    const data = await response.json();
+                    throw new Error(data.message || 'Gagal membuat ZIP.');
+                }
+
+                const blob = await response.blob();
+                const downloadName = response.headers.get('X-Zip-Filename') || 'selected_items.zip';
+                const itemCount = response.headers.get('X-Zip-Item-Count') || '0';
+                const totalBytes = response.headers.get('X-Zip-Total-Bytes') || '0';
+
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = downloadName;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(downloadUrl);
+
+                alert('ZIP selesai: ' + itemCount + ' item, total ' + formatBytes(totalBytes) + '.');
+            } catch (error) {
+                alert(error.message || 'Gagal membuat ZIP.');
+            } finally {
+                hideZipProgress();
+            }
+}
 
         document.addEventListener("DOMContentLoaded", function () {
+            const zipForm = document.getElementById('downloadZipForm');
+            const filterType = document.getElementById('filterType');
+
+            if (zipForm) {
+                zipForm.addEventListener('submit', handleZipDownload);
+            }
+
+            if (filterType) {
+                filterType.addEventListener('change', toggleExtensionField);
+                toggleExtensionField();
+            }
+
+            document.querySelectorAll("input[name='selected_items[]']").forEach(input => {
+                input.addEventListener('change', updateSelectedCount);
+            });
+
+            updateSelectedCount();
 
             document.querySelectorAll(".bookmark-btn").forEach(button => {
         button.addEventListener("click", (event) => {
@@ -956,6 +1442,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         window.location.href = link.href;
                     });
                 }
+                const checkbox = row.querySelector("input[type='checkbox']");
+                if (checkbox) {
+                    checkbox.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                    });
+                }
                 const editButton = row.querySelector("button[onclick^='openEditor']");
                 if (editButton) {
                     editButton.addEventListener("click", (event) => {
@@ -972,6 +1464,12 @@ document.addEventListener("DOMContentLoaded", function () {
     <div id="loading">
         <div class="loader"></div>
         <h1>Loading...</h1>
+    </div>
+    <div id="zipProgressOverlay" class="zip-progress-overlay">
+        <div class="zip-progress-card">
+            <div class="zip-spinner"></div>
+            <div id="zipProgressText">Membuat ZIP...</div>
+        </div>
     </div>
     <div class="container">
         <h2 style="margin-bottom: 20px; text-align: center;">
@@ -993,6 +1491,27 @@ document.addEventListener("DOMContentLoaded", function () {
         <div class="search-container">
             <input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
         </div>
+        <form id="downloadZipForm" method="post" class="zip-toolbar">
+            <input type="hidden" name="current_dir" value="<?php echo htmlspecialchars(isset($_GET['dir']) ? $_GET['dir'] : './', ENT_QUOTES, 'UTF-8'); ?>">
+            <input class="zip-field" type="text" name="zip_filename" id="zipFilename" value="selected_items_<?php echo date('Ymd_His'); ?>" placeholder="Nama file ZIP">
+            <select class="zip-small-field" name="include_mode" id="includeMode">
+                <option value="selected">Hanya item yang dipilih</option>
+                <option value="recursive">Include subfolder</option>
+            </select>
+            <select class="zip-small-field" name="filter_type" id="filterType">
+                <option value="all">Semua</option>
+                <option value="files">Hanya file</option>
+                <option value="folders">Hanya folder</option>
+                <option value="extension">Ekstensi tertentu</option>
+            </select>
+            <span id="extensionFilterWrap" style="display:none; gap:10px; align-items:center;">
+                <input class="zip-small-field" type="text" name="filter_extensions" id="filterExtensions" placeholder="php,js,css">
+            </span>
+            <button type="submit" name="download_selected" style="background-color: #007bff; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Download ZIP</button>
+            <button type="button" onclick="selectAllFiles(true)" style="background-color: #444; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Select All</button>
+            <button type="button" onclick="selectAllFiles(false)" style="background-color: #444; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Unselect All</button>
+            <span id="zipSelectedCount" class="zip-status">0 item dipilih</span>
+        </form>
         <br />
         <div id="dropZone" style="border: 2px dashed #007bff; padding: 20px; text-align: center; color: #007bff; margin-bottom: 20px;">
             Drag and drop files here to upload
@@ -1009,6 +1528,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <table class="file-table" id="fileTable">
             <thead>
                 <tr>
+                    <th><input type="checkbox" id="selectAllCheckbox" onclick="selectAllFiles(this.checked)"></th>
                     <th onclick="sortByName()">Name <span id="nameSortIcon" class="sort-icon">▴</span></th>
                     <th onclick="sortByDate()">Date modified <span id="dateSortIcon" class="sort-icon">▴</span></th>
                     <th onclick="sortByType()">Type <span id="typeSortIcon" class="sort-icon">▴</span></th>
@@ -1078,6 +1598,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     $fileType = filetype($filePath);
                 
                     echo "<tr>";
+                    echo "<td><input type='checkbox' form='downloadZipForm' name='selected_items[]' value='" . htmlspecialchars($filePath, ENT_QUOTES, 'UTF-8') . "' onclick='event.stopPropagation()'></td>";
                     if (is_dir($filePath)) {
                         echo "<td class='folder-icon'><a href='?dir=" . urlencode($filePath) . "'>$file</a></td>";
                         echo "<td>$fileDate</td>";
