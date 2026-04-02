@@ -122,6 +122,285 @@ function addPathToZip(ZipArchive $zip, $path, $localName)
     }
 }
 
+function trashDirectory()
+{
+    return __DIR__ . '/.trash';
+}
+
+function trashManifestPath()
+{
+    return trashDirectory() . '/manifest.json';
+}
+
+function ensureTrashDirectory()
+{
+    if (!is_dir(trashDirectory())) {
+        mkdir(trashDirectory(), 0777, true);
+    }
+}
+
+function loadTrashManifest()
+{
+    ensureTrashDirectory();
+    $manifestPath = trashManifestPath();
+
+    if (!file_exists($manifestPath)) {
+        return [];
+    }
+
+    $data = json_decode(file_get_contents($manifestPath), true);
+    return is_array($data) ? $data : [];
+}
+
+function saveTrashManifest(array $manifest)
+{
+    ensureTrashDirectory();
+    file_put_contents(trashManifestPath(), json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
+function generateBreadcrumb($currentDir)
+{
+    if (!is_string($currentDir)) {
+        $currentDir = './';
+    }
+
+    $currentDir = realpath($currentDir) ?: $currentDir;
+    $breadcrumbHtml = '<nav class="breadcrumb"><a href="?dir=./">Home</a>';
+    
+    $path = str_replace('\\', '/', $currentDir);
+    $baseDir = str_replace('\\', '/', realpath('./'));
+    
+    if (strpos($path, $baseDir) === 0) {
+        $relativePath = substr($path, strlen($baseDir));
+        $relativePath = ltrim($relativePath, '/');
+        
+        if ($relativePath !== '') {
+            $segments = array_values(array_filter(explode('/', $relativePath), 'strlen'));
+            $builtPath = './';
+            
+            foreach ($segments as $segment) {
+                $newPath = $builtPath . $segment;
+                $encodedPath = urlencode($newPath);
+                $breadcrumbHtml .= ' <span class="separator">/</span> ';
+                $breadcrumbHtml .= '<a href="?dir=' . $encodedPath . '">' . htmlspecialchars($segment) . '</a>';
+                $builtPath = $newPath . '/';
+            }
+        }
+    }
+    
+    $breadcrumbHtml .= '</nav>';
+    return $breadcrumbHtml;
+}
+
+function normalizeRelativePath($path)
+{
+    $path = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $path);
+    return trim($path, DIRECTORY_SEPARATOR);
+}
+
+function uniqueTrashName($originalPath)
+{
+    return date('Ymd_His') . '_' . substr(sha1($originalPath . microtime(true)), 0, 10);
+}
+
+function movePathToTrash($path)
+{
+    ensureTrashDirectory();
+
+    $realPath = realpath($path);
+    if ($realPath === false) {
+        return ['ok' => false, 'message' => 'Invalid file or folder.'];
+    }
+
+    $trashId = uniqueTrashName($realPath);
+    $trashPath = trashDirectory() . '/' . $trashId;
+    $manifest = loadTrashManifest();
+
+    if (!rename($realPath, $trashPath)) {
+        return ['ok' => false, 'message' => 'Failed to move item to trash.'];
+    }
+
+    $manifest[$trashId] = [
+        'original_path' => $realPath,
+        'trashed_at' => date('Y-m-d H:i:s'),
+        'name' => basename($realPath),
+        'type' => is_dir($trashPath) ? 'Folder' : 'File'
+    ];
+
+    saveTrashManifest($manifest);
+
+    return ['ok' => true, 'message' => 'Item moved to trash successfully!', 'id' => $trashId];
+}
+
+function restoreTrashItem($trashId)
+{
+    $manifest = loadTrashManifest();
+    if (!isset($manifest[$trashId])) {
+        return ['ok' => false, 'message' => 'Trash item not found.'];
+    }
+
+    $trashPath = trashDirectory() . '/' . $trashId;
+    if (!file_exists($trashPath)) {
+        unset($manifest[$trashId]);
+        saveTrashManifest($manifest);
+        return ['ok' => false, 'message' => 'Trash file missing.'];
+    }
+
+    $originalPath = $manifest[$trashId]['original_path'];
+    $originalDir = dirname($originalPath);
+
+    if (!is_dir($originalDir)) {
+        mkdir($originalDir, 0777, true);
+    }
+
+    $targetPath = $originalPath;
+    if (file_exists($targetPath)) {
+        $targetPath = $originalDir . '/' . pathinfo($originalPath, PATHINFO_FILENAME) . '_restored_' . time();
+        if (pathinfo($originalPath, PATHINFO_EXTENSION) !== '') {
+            $targetPath .= '.' . pathinfo($originalPath, PATHINFO_EXTENSION);
+        }
+    }
+
+    if (!rename($trashPath, $targetPath)) {
+        return ['ok' => false, 'message' => 'Failed to restore item.'];
+    }
+
+    unset($manifest[$trashId]);
+    saveTrashManifest($manifest);
+
+    return ['ok' => true, 'message' => 'Item restored successfully!'];
+}
+
+function emptyTrashItem($trashId)
+{
+    $manifest = loadTrashManifest();
+    $trashPath = trashDirectory() . '/' . $trashId;
+
+    if (file_exists($trashPath)) {
+        if (is_dir($trashPath)) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($trashPath, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                if ($item->isDir()) {
+                    rmdir($item->getPathname());
+                } else {
+                    unlink($item->getPathname());
+                }
+            }
+            rmdir($trashPath);
+        } else {
+            unlink($trashPath);
+        }
+    }
+
+    unset($manifest[$trashId]);
+    saveTrashManifest($manifest);
+
+    return ['ok' => true, 'message' => 'Trash item permanently deleted.'];
+}
+
+function scanDuplicateFiles($baseDir)
+{
+    $baseDirReal = realpath($baseDir);
+    if ($baseDirReal === false) {
+        return ['ok' => false, 'message' => 'Invalid directory.'];
+    }
+
+    $groups = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($baseDirReal, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file->isFile()) {
+            continue;
+        }
+
+        $path = $file->getPathname();
+        $key = $file->getSize() . '|' . md5_file($path);
+        if (!isset($groups[$key])) {
+            $groups[$key] = [];
+        }
+
+        $groups[$key][] = $path;
+    }
+
+    $duplicates = [];
+    foreach ($groups as $files) {
+        if (count($files) > 1) {
+            $duplicates[] = $files;
+        }
+    }
+
+    return ['ok' => true, 'duplicates' => $duplicates, 'count' => count($duplicates)];
+}
+
+function searchFilesByContent($baseDir, $query)
+{
+    $baseDirReal = realpath($baseDir);
+    if ($baseDirReal === false) {
+        return ['ok' => false, 'message' => 'Invalid directory.'];
+    }
+
+    $query = trim((string) $query);
+    if ($query === '') {
+        return ['ok' => false, 'message' => 'Search query cannot be empty.'];
+    }
+
+    $matches = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($baseDirReal, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->getSize() > 2097152) {
+            continue;
+        }
+
+        $path = $file->getPathname();
+        $content = @file_get_contents($path);
+        if ($content !== false && stripos($content, $query) !== false) {
+            $matches[] = $path;
+        }
+    }
+
+    return ['ok' => true, 'matches' => $matches, 'count' => count($matches)];
+}
+
+function copyDirectory($source, $dest)
+{
+    if (!is_dir($source)) {
+        return false;
+    }
+
+    if (!is_dir($dest)) {
+        @mkdir($dest, 0777, true);
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $relativePath = substr($item->getPathname(), strlen($source) + 1);
+        $targetPath = $dest . DIRECTORY_SEPARATOR . $relativePath;
+
+        if ($item->isDir()) {
+            if (!is_dir($targetPath)) {
+                @mkdir($targetPath, 0777, true);
+            }
+        } else {
+            @copy($item->getPathname(), $targetPath);
+        }
+    }
+
+    return true;
+}
+
 function sendJsonResponse(array $data, int $statusCode = 200)
 {
     http_response_code($statusCode);
@@ -344,39 +623,119 @@ if (isset($_GET['action'])) {
 
     if ($action === 'delete') {
         if (is_file($file)) {
-            if (unlink($file)) {
-                echo "File deleted successfully!";
-                logActivity("Deleted File: $file");
+            $result = movePathToTrash($file);
+            echo $result['message'];
+            if ($result['ok']) {
+                logActivity("Moved File to Trash: $file");
             } else {
-                echo "Failed to delete file.";
-                logActivity("Failed to Delete File: $file");
+                logActivity("Failed to Move File to Trash: $file");
             }
         } elseif (is_dir($file)) {
-            function deleteFolder($folder) {
-                foreach (scandir($folder) as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $itemPath = $folder . '/' . $item;
-                    if (is_dir($itemPath)) {
-                        deleteFolder($itemPath);
-                    } else {
-                        unlink($itemPath);
-                    }
-                }
-                return rmdir($folder);
-            }
-
-            if (deleteFolder($file)) {
-                echo "Folder deleted successfully!";
-                logActivity("Deleted Folder: $file");
+            $result = movePathToTrash($file);
+            echo $result['message'];
+            if ($result['ok']) {
+                logActivity("Moved Folder to Trash: $file");
             } else {
-                echo "Failed to delete folder.";
-                logActivity("Failed to Delete Folder: $file");
+                logActivity("Failed to Move Folder to Trash: $file");
             }
         } else {
             echo "Invalid file or folder.";
             logActivity("Delete Attempted: $file - Invalid File/Folder");
         }
         exit;
+    }
+
+    if ($action === 'restoreTrash') {
+        $trashId = $_GET['trashId'] ?? '';
+        $result = restoreTrashItem($trashId);
+        echo $result['message'];
+        logActivity(($result['ok'] ? 'Restored Trash Item: ' : 'Failed to Restore Trash Item: ') . $trashId);
+        exit;
+    }
+
+    if ($action === 'purgeTrash') {
+        $trashId = $_GET['trashId'] ?? '';
+        $result = emptyTrashItem($trashId);
+        echo $result['message'];
+        logActivity('Purged Trash Item: ' . $trashId);
+        exit;
+    }
+
+    if ($action === 'findDuplicates') {
+        $dir = $_GET['dir'] ?? './';
+        $result = scanDuplicateFiles($dir);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($result);
+        exit;
+    }
+
+    if ($action === 'searchContent') {
+        $dir = $_GET['dir'] ?? './';
+        $query = $_GET['q'] ?? '';
+        $result = searchFilesByContent($dir, $query);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($result);
+        exit;
+    }
+
+    if ($action === 'moveFile') {
+        $source = $_GET['source'] ?? '';
+        $destination = $_GET['destination'] ?? '';
+        $mode = $_GET['mode'] ?? 'move'; // 'move' or 'copy'
+
+        if (!file_exists($source)) {
+            sendJsonResponse(['ok' => false, 'message' => 'Source file/folder not found.'], 400);
+        }
+
+        if (!is_dir($destination)) {
+            sendJsonResponse(['ok' => false, 'message' => 'Destination folder not found.'], 400);
+        }
+
+        // Prevent dragging to itself
+        if (realpath($source) === realpath($destination)) {
+            sendJsonResponse(['ok' => false, 'message' => 'Cannot move/copy to the same location.'], 400);
+        }
+
+        $targetPath = rtrim($destination, '/\\') . DIRECTORY_SEPARATOR . basename($source);
+
+        // Handle naming conflicts
+        $counter = 1;
+        $originalTargetPath = $targetPath;
+        while (file_exists($targetPath)) {
+            if (is_file($source)) {
+                $info = pathinfo($originalTargetPath);
+                $targetPath = $info['dirname'] . DIRECTORY_SEPARATOR . $info['filename'] . '_' . $counter . '.' . ($info['extension'] ?? '');
+            } else {
+                $targetPath = $originalTargetPath . '_' . $counter;
+            }
+            $counter++;
+        }
+
+        if ($mode === 'copy') {
+            if (is_file($source)) {
+                if (@copy($source, $targetPath)) {
+                    logActivity("Copied File: $source to $targetPath");
+                    sendJsonResponse(['ok' => true, 'message' => 'File copied successfully!']);
+                } else {
+                    sendJsonResponse(['ok' => false, 'message' => 'Failed to copy file.'], 500);
+                }
+            } else {
+                // Recursive copy for directories
+                if (copyDirectory($source, $targetPath)) {
+                    logActivity("Copied Folder: $source to $targetPath");
+                    sendJsonResponse(['ok' => true, 'message' => 'Folder copied successfully!']);
+                } else {
+                    sendJsonResponse(['ok' => false, 'message' => 'Failed to copy folder.'], 500);
+                }
+            }
+        } else { // move
+            if (@rename($source, $targetPath)) {
+                logActivity("Moved: $source to $targetPath");
+                sendJsonResponse(['ok' => true, 'message' => 'Item moved successfully!']);
+            } else {
+                sendJsonResponse(['ok' => false, 'message' => 'Failed to move item.'], 500);
+            }
+        }
     }
 }
 
@@ -606,6 +965,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
             color: #d4d4d4;
         }
 
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            margin-bottom: 15px;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+
+        .breadcrumb a {
+            color: #57a3ff;
+            text-decoration: none;
+            padding: 5px 8px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .breadcrumb a:hover {
+            background-color: #2a2d2e;
+            color: #7eb3ff;
+        }
+
+        .breadcrumb .separator {
+            color: #888;
+            margin: 0 5px;
+        }
+
+        .light-mode .breadcrumb a {
+            color: #0066cc;
+        }
+
+        .light-mode .breadcrumb a:hover {
+            background-color: #e0e0e0;
+            color: #0052a3;
+        }
+
+        .light-mode .breadcrumb .separator {
+            color: #666;
+        }
 
         .search-container button .sort-icon {
             position: absolute;
@@ -955,6 +1353,161 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
+
+        .search-advanced {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .search-advanced input,
+        .search-advanced select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        .upload-progress-wrap {
+            display: none;
+            margin-top: 12px;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .upload-progress-bar {
+            width: 0%;
+            height: 12px;
+            background: linear-gradient(90deg, #007bff, #28a745);
+            transition: width 0.2s ease;
+        }
+
+        .upload-progress-text {
+            font-size: 12px;
+            padding: 8px 10px;
+            color: #d4d4d4;
+        }
+
+        .trash-panel {
+            margin-top: 20px;
+            background: #252526;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .trash-panel h3,
+        .duplicate-panel h3 {
+            margin-top: 0;
+        }
+
+        .trash-item,
+        .duplicate-group {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .trash-item small,
+        .duplicate-group small {
+            color: #a0a0a0;
+            display: block;
+            margin-top: 4px;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.72);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .modal-card {
+            width: min(900px, 92vw);
+            max-height: 84vh;
+            overflow: auto;
+            background: #252526;
+            color: #d4d4d4;
+            border-radius: 10px;
+            padding: 18px;
+            border: 1px solid #333;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .modal-close {
+            background: #444;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .context-menu {
+            position: fixed;
+            background: #252526;
+            border: 1px solid #444;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 10001;
+            min-width: 180px;
+            display: none;
+        }
+
+        .context-menu.show {
+            display: block;
+        }
+
+        .context-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            color: #d4d4d4;
+            font-size: 13px;
+            transition: background-color 0.15s;
+            user-select: none;
+        }
+
+        .context-item:hover {
+            background-color: #2a2d2e;
+            color: #7eb3ff;
+        }
+
+        .context-item:active {
+            background-color: #1e1e1e;
+        }
+
+        .light-mode .context-menu {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+
+        .light-mode .context-item {
+            color: #333;
+        }
+
+        .light-mode .context-item:hover {
+            background-color: #e8e8e8;
+            color: #0066cc;
+        }
+
     </style>
     <script>
         function goBack() {
@@ -964,36 +1517,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['uploadedFiles'])) {
         }
 
 
-        function searchFiles() {
-            var input, filter, table, tr, td, i, txtValue;
-            input = document.getElementById("searchInput");
-            filter = input.value.toUpperCase();
-            table = document.getElementById("fileTable");
-            tr = table.getElementsByTagName("tr");
+        function applyAdvancedSearch() {
+            const nameQuery = (document.getElementById('searchName')?.value || document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+            const typeQuery = document.getElementById('searchType')?.value || 'all';
+            const extensionQuery = (document.getElementById('searchExtension')?.value || '').toLowerCase().trim().replace(/^\./, '');
+            const sizeMin = parseFloat(document.getElementById('searchSizeMin')?.value || '');
+            const sizeMax = parseFloat(document.getElementById('searchSizeMax')?.value || '');
+            const dateFrom = document.getElementById('searchDateFrom')?.value ? new Date(document.getElementById('searchDateFrom').value + 'T00:00:00') : null;
+            const dateTo = document.getElementById('searchDateTo')?.value ? new Date(document.getElementById('searchDateTo').value + 'T23:59:59') : null;
+            const rows = document.querySelectorAll('#fileTable tbody tr');
 
-            if (!filter) {
-                // If input is empty, redirect to the root or main folder
-                window.location.href = '?dir=./'; // Redirect to root folder
+            rows.forEach(row => {
+                const nameCell = row.getElementsByTagName('td')[1];
+                const dateCell = row.getElementsByTagName('td')[2];
+                const typeCell = row.getElementsByTagName('td')[3];
+                const sizeCell = row.getElementsByTagName('td')[4];
+
+                if (!nameCell || !dateCell || !typeCell || !sizeCell) {
+                    return;
+                }
+
+                const nameText = nameCell.textContent.toLowerCase();
+                const typeText = typeCell.textContent.toLowerCase();
+                const sizeValue = parseSize(sizeCell.textContent);
+                const dateValue = new Date(dateCell.textContent.replace(/\.$/, ''));
+                const extensionMatch = nameText.includes('.') ? nameText.split('.').pop() : '';
+
+                let visible = true;
+                if (nameQuery && !nameText.includes(nameQuery)) visible = false;
+                if (visible && typeQuery !== 'all' && typeText !== typeQuery) visible = false;
+                if (visible && extensionQuery && extensionMatch !== extensionQuery) visible = false;
+                if (visible && !Number.isNaN(sizeMin) && sizeValue < sizeMin) visible = false;
+                if (visible && !Number.isNaN(sizeMax) && sizeValue > sizeMax) visible = false;
+                if (visible && dateFrom && !Number.isNaN(dateValue.getTime()) && dateValue < dateFrom) visible = false;
+                if (visible && dateTo && !Number.isNaN(dateValue.getTime()) && dateValue > dateTo) visible = false;
+
+                row.style.display = visible ? '' : 'none';
+            });
+        }
+
+        function clearAdvancedSearch() {
+            ['searchInput', 'searchName', 'searchExtension', 'searchSizeMin', 'searchSizeMax', 'searchDateFrom', 'searchDateTo', 'searchContent'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.value = '';
+                }
+            });
+
+            const searchType = document.getElementById('searchType');
+            if (searchType) {
+                searchType.value = 'all';
+            }
+
+            applyAdvancedSearch();
+        }
+
+        async function searchContentFiles() {
+            const query = (document.getElementById('searchContent')?.value || '').trim();
+            if (!query) {
+                alert('Masukkan kata kunci isi file.');
                 return;
             }
 
-            for (i = 1; i < tr.length; i++) {
-                td = tr[i].getElementsByTagName("td")[1]; // Targeting only the name cell
-                if (td) {
-                    txtValue = td.textContent || td.innerText;
-                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                        tr[i].style.display = "";
-                        // Highlight only the matched text
-                        const link = td.getElementsByTagName("a")[0];
-                        if (link) {
-                            const highlightedText = txtValue.replace(new RegExp(filter, "gi"), match => `<span class='highlight'>${match}</span>`);
-                            link.innerHTML = highlightedText;
-                        }
-                    } else {
-                        tr[i].style.display = "none";
-                    }
+            showZipProgress('Mencari isi file...');
+            try {
+                const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+                const response = await fetch(`?action=searchContent&dir=${encodeURIComponent(currentDir)}&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (!data.ok) {
+                    throw new Error(data.message || 'Gagal mencari isi file.');
                 }
+
+                if (!data.matches || data.matches.length === 0) {
+                    showDuplicateModal('<div>Tidak ada file yang mengandung kata tersebut.</div>');
+                    return;
+                }
+
+                const html = '<div class="duplicate-group"><strong>Content Search Results</strong><small>' + data.count + ' file ditemukan</small><ul>' + data.matches.map(item => `<li>${item}</li>`).join('') + '</ul></div>';
+                showDuplicateModal(html);
+            } catch (error) {
+                alert(error.message || 'Gagal mencari isi file.');
+            } finally {
+                hideZipProgress();
             }
+        }
+
+        function searchFiles() {
+            const nameInput = document.getElementById('searchInput');
+            const nameQuery = (nameInput ? nameInput.value : '').toLowerCase().trim();
+            const nameFilter = (document.getElementById('searchName')?.value || '').toLowerCase().trim();
+
+            if (nameInput) {
+                document.getElementById('searchName').value = nameQuery || nameFilter;
+            }
+
+            applyAdvancedSearch();
+
+            const rows = document.querySelectorAll('#fileTable tbody tr');
+            rows.forEach(row => {
+                const nameCell = row.getElementsByTagName('td')[1];
+                if (!nameCell || row.style.display === 'none') {
+                    return;
+                }
+
+                const link = nameCell.getElementsByTagName('a')[0];
+                if (link && nameQuery) {
+                    const originalText = link.textContent || link.innerText;
+                    const highlightedText = originalText.replace(new RegExp(nameQuery, 'gi'), match => `<span class='highlight'>${match}</span>`);
+                    link.innerHTML = highlightedText;
+                }
+            });
         }
 
         function parseSize(sizeStr) {
@@ -1276,124 +1910,314 @@ function selectAllFiles(checked) {
         selectAllCheckbox.checked = checked;
     }
 
-            updateSelectedCount();
-        }
-
-        function updateSelectedCount() {
-            const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
-            const counter = document.getElementById('zipSelectedCount');
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-            const allCheckboxes = document.querySelectorAll("input[name='selected_items[]']");
-
-            if (counter) {
-                counter.textContent = selectedCount + ' item dipilih';
-            }
-
-            if (selectAllCheckbox) {
-                selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedCount === allCheckboxes.length;
-            }
-        }
-
-        function toggleExtensionField() {
-            const filterType = document.getElementById('filterType');
-            const extensionWrap = document.getElementById('extensionFilterWrap');
-            const extensionInput = document.getElementById('filterExtensions');
-
-            if (!filterType || !extensionWrap || !extensionInput) {
-                return;
-            }
-
-            const isExtensionFilter = filterType.value === 'extension';
-            extensionWrap.style.display = isExtensionFilter ? 'flex' : 'none';
-
-            if (!isExtensionFilter) {
-                extensionInput.value = '';
-            }
-        }
-
-        function formatBytes(bytes) {
-            const value = Number(bytes || 0);
-            if (value >= 1073741824) return (value / 1073741824).toFixed(2) + ' GB';
-            if (value >= 1048576) return (value / 1048576).toFixed(2) + ' MB';
-            if (value >= 1024) return (value / 1024).toFixed(2) + ' KB';
-            return value + ' bytes';
-        }
-
-        function showZipProgress(message) {
-            const overlay = document.getElementById('zipProgressOverlay');
-            const text = document.getElementById('zipProgressText');
-
-            if (overlay) {
-                overlay.style.display = 'flex';
-            }
-            if (text) {
-                text.textContent = message || 'Membuat ZIP...';
-            }
-        }
-
-        function hideZipProgress() {
-            const overlay = document.getElementById('zipProgressOverlay');
-            if (overlay) {
-                overlay.style.display = 'none';
-            }
-        }
-
-        async function handleZipDownload(event) {
-            event.preventDefault();
-
-            const form = event.target;
-            const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
-            const filterType = document.getElementById('filterType');
-            const extensionInput = document.getElementById('filterExtensions');
-
-            if (selectedCount === 0) {
-                alert('Pilih minimal satu folder/file.');
-                return;
-            }
-
-            if (filterType && filterType.value === 'extension' && extensionInput && !extensionInput.value.trim()) {
-                alert('Masukkan ekstensi file, misalnya php,js,css.');
-                return;
-            }
-
-            showZipProgress('Membuat ZIP, tunggu sebentar...');
-
-            try {
-                const response = await fetch(window.location.href.split('#')[0], {
-                    method: 'POST',
-                    body: new FormData(form)
-                });
-
-                const contentType = response.headers.get('Content-Type') || '';
-
-                if (!response.ok || contentType.includes('application/json')) {
-                    const data = await response.json();
-                    throw new Error(data.message || 'Gagal membuat ZIP.');
-                }
-
-                const blob = await response.blob();
-                const downloadName = response.headers.get('X-Zip-Filename') || 'selected_items.zip';
-                const itemCount = response.headers.get('X-Zip-Item-Count') || '0';
-                const totalBytes = response.headers.get('X-Zip-Total-Bytes') || '0';
-
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = downloadUrl;
-                link.download = downloadName;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(downloadUrl);
-
-                alert('ZIP selesai: ' + itemCount + ' item, total ' + formatBytes(totalBytes) + '.');
-            } catch (error) {
-                alert(error.message || 'Gagal membuat ZIP.');
-            } finally {
-                hideZipProgress();
-            }
+    updateSelectedCount();
 }
 
-        document.addEventListener("DOMContentLoaded", function () {
+function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
+    const counter = document.getElementById('zipSelectedCount');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const allCheckboxes = document.querySelectorAll("input[name='selected_items[]']");
+
+    if (counter) {
+        counter.textContent = selectedCount + ' item dipilih';
+    }
+
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedCount === allCheckboxes.length;
+    }
+}
+
+function toggleExtensionField() {
+    const filterType = document.getElementById('filterType');
+    const extensionWrap = document.getElementById('extensionFilterWrap');
+    const extensionInput = document.getElementById('filterExtensions');
+
+    if (!filterType || !extensionWrap || !extensionInput) {
+        return;
+    }
+
+    const isExtensionFilter = filterType.value === 'extension';
+    extensionWrap.style.display = isExtensionFilter ? 'flex' : 'none';
+
+    if (!isExtensionFilter) {
+        extensionInput.value = '';
+    }
+}
+
+function formatBytes(bytes) {
+    const value = Number(bytes || 0);
+    if (value >= 1073741824) return (value / 1073741824).toFixed(2) + ' GB';
+    if (value >= 1048576) return (value / 1048576).toFixed(2) + ' MB';
+    if (value >= 1024) return (value / 1024).toFixed(2) + ' KB';
+    return value + ' bytes';
+}
+
+function showZipProgress(message) {
+    const overlay = document.getElementById('zipProgressOverlay');
+    const text = document.getElementById('zipProgressText');
+
+    if (overlay) {
+        overlay.style.display = 'flex';
+    }
+    if (text) {
+        text.textContent = message || 'Membuat ZIP...';
+    }
+}
+
+function hideZipProgress() {
+    const overlay = document.getElementById('zipProgressOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+function showDuplicateModal(content) {
+    const modal = document.getElementById('duplicateModal');
+    const modalContent = document.getElementById('duplicateModalContent');
+    if (modalContent) {
+        modalContent.innerHTML = content;
+    }
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeDuplicateModal() {
+    const modal = document.getElementById('duplicateModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+let contextMenuTarget = null;
+
+function showContextMenu(event, filePath) {
+    event.preventDefault();
+    contextMenuTarget = filePath;
+    
+    const contextMenu = document.getElementById('contextMenu');
+    contextMenu.classList.add('show');
+    contextMenu.style.left = event.pageX + 'px';
+    contextMenu.style.top = event.pageY + 'px';
+}
+
+function hideContextMenu() {
+    const contextMenu = document.getElementById('contextMenu');
+    contextMenu.classList.remove('show');
+    contextMenuTarget = null;
+}
+
+function contextAction(action) {
+    if (!contextMenuTarget) return;
+    
+    hideContextMenu();
+    
+    switch (action) {
+        case 'open':
+            window.location.href = '?dir=' + encodeURIComponent(contextMenuTarget);
+            break;
+        case 'rename':
+            const newName = prompt('Enter new name:', contextMenuTarget.split('/').pop());
+            if (newName) {
+                fetch(`?action=rename&file=${encodeURIComponent(contextMenuTarget)}&newName=${encodeURIComponent(newName)}`)
+                    .then(() => location.reload())
+                    .catch(err => alert('Rename failed: ' + err));
+            }
+            break;
+        case 'delete':
+            if (confirm('Move to trash?')) {
+                fetch(`?action=delete&file=${encodeURIComponent(contextMenuTarget)}`)
+                    .then(() => location.reload())
+                    .catch(err => alert('Delete failed: ' + err));
+            }
+            break;
+        case 'copyPath':
+            navigator.clipboard.writeText(contextMenuTarget).then(() => {
+                alert('Path copied to clipboard!');
+            }).catch(err => alert('Failed to copy: ' + err));
+            break;
+        case 'properties':
+            // Simple properties dialog
+            alert('Path: ' + contextMenuTarget);
+            break;
+    }
+}
+
+let draggedFilePath = null;
+
+function startDrag(event, filePath) {
+    draggedFilePath = filePath;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.dropEffect = 'move';
+    event.dataTransfer.setData('text/plain', filePath);
+    
+    // Add visual feedback
+    if (event.target.closest('tr')) {
+        event.target.closest('tr').style.opacity = '0.5';
+    }
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = event.ctrlKey ? 'copy' : 'move';
+    
+    // Highlight the drop zone
+    if (event.target.closest('tbody')) {
+        event.target.closest('tbody').style.backgroundColor = 'rgba(88, 205, 124, 0.2)';
+    }
+}
+
+function leaveDrop(event) {
+    // Remove highlight
+    if (event.target.closest('tbody')) {
+        event.target.closest('tbody').style.backgroundColor = 'transparent';
+    }
+}
+
+async function handleDrop(event, destinationPath) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!draggedFilePath) return;
+    
+    // Remove highlight
+    if (event.target.closest('tbody')) {
+        event.target.closest('tbody').style.backgroundColor = 'transparent';
+    }
+    
+    // Restore opacity
+    const rows = document.querySelectorAll('#fileTable tbody tr');
+    rows.forEach(row => row.style.opacity = '1');
+    
+    const mode = event.ctrlKey ? 'copy' : 'move';
+    
+    try {
+        const response = await fetch(`?action=moveFile&source=${encodeURIComponent(draggedFilePath)}&destination=${encodeURIComponent(destinationPath)}&mode=${mode}`);
+        const data = await response.json();
+        
+        if (data.ok) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to ' + mode + ' file'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+    
+    draggedFilePath = null;
+}
+
+async function findDuplicates() {
+    showZipProgress('Mencari file duplikat...');
+    try {
+        const currentDir = window.location.search ? new URLSearchParams(window.location.search).get('dir') : './';
+        const response = await fetch(`?action=findDuplicates&dir=${encodeURIComponent(currentDir)}`);
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.message || 'Gagal mencari duplikat.');
+        }
+
+        if (!data.duplicates || data.duplicates.length === 0) {
+            showDuplicateModal('<div>Tidak ada file duplikat yang ditemukan di folder ini.</div>');
+            return;
+        }
+
+        const html = data.duplicates.map((group, index) => {
+            const items = group.map(item => `<li>${item}</li>`).join('');
+            return `<div class="duplicate-group"><strong>Group ${index + 1}</strong><small>${group.length} file dengan isi identik</small><ul>${items}</ul></div>`;
+        }).join('');
+
+        showDuplicateModal(html);
+    } catch (error) {
+        alert(error.message || 'Gagal mencari duplikat.');
+    } finally {
+        hideZipProgress();
+    }
+}
+
+function restoreTrashItem(trashId) {
+    fetch(`?action=restoreTrash&trashId=${encodeURIComponent(trashId)}`)
+        .then(response => response.text())
+        .then(result => {
+            alert(result);
+            location.reload();
+        })
+        .catch(error => alert('Failed to restore trash item: ' + error));
+}
+
+function purgeTrashItem(trashId) {
+    if (!confirm('Delete permanently this trash item?')) {
+        return;
+    }
+
+    fetch(`?action=purgeTrash&trashId=${encodeURIComponent(trashId)}`)
+        .then(response => response.text())
+        .then(result => {
+            alert(result);
+            location.reload();
+        })
+        .catch(error => alert('Failed to purge trash item: ' + error));
+}
+
+async function handleZipDownload(event) {
+    event.preventDefault();
+
+    const form = event.target;
+    const selectedCount = document.querySelectorAll("input[name='selected_items[]']:checked").length;
+    const filterType = document.getElementById('filterType');
+    const extensionInput = document.getElementById('filterExtensions');
+
+    if (selectedCount === 0) {
+        alert('Pilih minimal satu folder/file.');
+        return;
+    }
+
+    if (filterType && filterType.value === 'extension' && extensionInput && !extensionInput.value.trim()) {
+        alert('Masukkan ekstensi file, misalnya php,js,css.');
+        return;
+    }
+
+    showZipProgress('Membuat ZIP, tunggu sebentar...');
+
+    try {
+        const response = await fetch(window.location.href.split('#')[0], {
+            method: 'POST',
+            body: new FormData(form)
+        });
+
+        const contentType = response.headers.get('Content-Type') || '';
+
+        if (!response.ok || contentType.includes('application/json')) {
+            const data = await response.json();
+            throw new Error(data.message || 'Gagal membuat ZIP.');
+        }
+
+        const blob = await response.blob();
+        const downloadName = response.headers.get('X-Zip-Filename') || 'selected_items.zip';
+        const itemCount = response.headers.get('X-Zip-Item-Count') || '0';
+        const totalBytes = response.headers.get('X-Zip-Total-Bytes') || '0';
+
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = downloadName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+        alert('ZIP selesai: ' + itemCount + ' item, total ' + formatBytes(totalBytes) + '.');
+    } catch (error) {
+        alert(error.message || 'Gagal membuat ZIP.');
+    } finally {
+        hideZipProgress();
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
             const zipForm = document.getElementById('downloadZipForm');
             const filterType = document.getElementById('filterType');
 
@@ -1454,7 +2278,20 @@ function selectAllFiles(checked) {
                         event.stopPropagation();
                     });
                 }
+                
+                // Add context menu
+                const fileNameCell = row.querySelector("td:nth-child(2)");
+                const linkInCell = fileNameCell ? fileNameCell.querySelector("a") : null;
+                if (linkInCell) {
+                    const filePath = new URLSearchParams(linkInCell.href.split('?')[1]).get('dir') || linkInCell.textContent.trim();
+                    row.addEventListener("contextmenu", (event) => {
+                        showContextMenu(event, filePath);
+                    });
+                }
             });
+
+            // Hide context menu on click elsewhere
+            document.addEventListener("click", hideContextMenu);
         });
         
     </script>
@@ -1488,8 +2325,30 @@ function selectAllFiles(checked) {
             </div>
         </header>
 
+        <?php 
+        $currentDirForBreadcrumb = isset($_GET['dir']) ? $_GET['dir'] : './';
+        echo generateBreadcrumb($currentDirForBreadcrumb);
+        ?>
+
         <div class="search-container">
             <input type="text" id="searchInput" onkeyup="searchFiles()" placeholder="Search for files...">
+            <div class="search-advanced">
+                <input type="text" id="searchName" placeholder="Nama file/folder">
+                <select id="searchType">
+                    <option value="all">Semua tipe</option>
+                    <option value="file">File</option>
+                    <option value="folder">Folder</option>
+                </select>
+                <input type="text" id="searchExtension" placeholder="Ekstensi, mis. php">
+                <input type="number" id="searchSizeMin" placeholder="Ukuran min (bytes)">
+                <input type="number" id="searchSizeMax" placeholder="Ukuran max (bytes)">
+                <input type="date" id="searchDateFrom">
+                <input type="date" id="searchDateTo">
+                <input type="text" id="searchContent" placeholder="Isi file mengandung...">
+                <button type="button" onclick="applyAdvancedSearch()" style="background-color: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Filter</button>
+                <button type="button" onclick="searchContentFiles()" style="background-color: #6f42c1; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Search Content</button>
+                <button type="button" onclick="clearAdvancedSearch()" style="background-color: #444; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Reset</button>
+            </div>
         </div>
         <form id="downloadZipForm" method="post" class="zip-toolbar">
             <input type="hidden" name="current_dir" value="<?php echo htmlspecialchars(isset($_GET['dir']) ? $_GET['dir'] : './', ENT_QUOTES, 'UTF-8'); ?>">
@@ -1510,6 +2369,7 @@ function selectAllFiles(checked) {
             <button type="submit" name="download_selected" style="background-color: #007bff; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Download ZIP</button>
             <button type="button" onclick="selectAllFiles(true)" style="background-color: #444; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Select All</button>
             <button type="button" onclick="selectAllFiles(false)" style="background-color: #444; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Unselect All</button>
+            <button type="button" onclick="findDuplicates()" style="background-color: #6f42c1; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Find Duplicates</button>
             <span id="zipSelectedCount" class="zip-status">0 item dipilih</span>
         </form>
         <br />
@@ -1519,11 +2379,38 @@ function selectAllFiles(checked) {
                 <input type="file" id="fileInput" name="uploadedFiles[]" multiple style="display: none;">
                 <button type="button" id="browseButton" style="margin-top: 10px; background-color: #007bff; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Browse Files</button>
                 <button type="submit" style="margin-top: 10px; background-color: #28a745; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Upload</button>
+                <button type="button" id="cancelUploadButton" style="margin-top: 10px; background-color: #dc3545; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; display:none;">Cancel Upload</button>
             </form>
+            <div class="upload-progress-wrap" id="uploadProgressWrap">
+                <div class="upload-progress-bar" id="uploadProgressBar"></div>
+                <div class="upload-progress-text" id="uploadProgressText">0%</div>
+            </div>
         </div>
         <div class="bookmarks">
             <h3>Bookmarks</h3>
             <ul id="bookmarkList"></ul>
+        </div>
+        <div class="trash-panel">
+            <h3>Recycle Bin</h3>
+            <div style="font-size: 12px; color: #a0a0a0; margin-bottom: 10px;">Deleted items are moved here first. Restore or purge them below.</div>
+            <?php
+            $trashManifest = loadTrashManifest();
+            if (count($trashManifest) === 0):
+            ?>
+                <div style="color: #a0a0a0; font-size: 12px;">Recycle bin is empty.</div>
+            <?php else: ?>
+                <?php foreach (array_reverse($trashManifest, true) as $trashId => $trashItem): ?>
+                    <div class="trash-item">
+                        <strong><?php echo htmlspecialchars($trashItem['name'] ?? $trashId, ENT_QUOTES, 'UTF-8'); ?></strong>
+                        <small>Original: <?php echo htmlspecialchars($trashItem['original_path'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></small>
+                        <small>Trashed at: <?php echo htmlspecialchars($trashItem['trashed_at'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></small>
+                        <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button type="button" onclick="restoreTrashItem('<?php echo htmlspecialchars($trashId, ENT_QUOTES, 'UTF-8'); ?>')" style="background-color: #28a745; color: #fff; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer;">Restore</button>
+                            <button type="button" onclick="purgeTrashItem('<?php echo htmlspecialchars($trashId, ENT_QUOTES, 'UTF-8'); ?>')" style="background-color: #dc3545; color: #fff; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer;">Delete Permanently</button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </div>
         <table class="file-table" id="fileTable">
             <thead>
@@ -1659,6 +2546,24 @@ function selectAllFiles(checked) {
                 class="github-icon"><i class="fab fa-github"></i></span> Xnuvers007
         </a>
     </footer>
+    <div id="duplicateModal" class="modal-overlay">
+        <div class="modal-card duplicate-panel">
+            <div class="modal-header">
+                <h3 style="margin:0;">Duplicate Finder</h3>
+                <button type="button" class="modal-close" onclick="closeDuplicateModal()">Close</button>
+            </div>
+            <div id="duplicateModalContent">Click Find Duplicates to scan the current folder.</div>
+        </div>
+    </div>
+
+    <div id="contextMenu" class="context-menu">
+        <div class="context-item" onclick="contextAction('open')">Open / Download</div>
+        <div class="context-item" onclick="contextAction('rename')">Rename</div>
+        <div class="context-item" onclick="contextAction('delete')">Delete to Trash</div>
+        <div class="context-item" onclick="contextAction('copyPath')">Copy Path</div>
+        <div class="context-item" onclick="contextAction('properties')">Properties</div>
+    </div>
+
     <script>
 function bookmarkFolder(folderPath) {
     let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
@@ -1707,6 +2612,76 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileInput = document.getElementById('fileInput');
     const uploadForm = document.getElementById('uploadForm');
     const browseButton = document.getElementById('browseButton');
+    const cancelUploadButton = document.getElementById('cancelUploadButton');
+    const uploadProgressWrap = document.getElementById('uploadProgressWrap');
+    const uploadProgressBar = document.getElementById('uploadProgressBar');
+    const uploadProgressText = document.getElementById('uploadProgressText');
+    let uploadXhr = null;
+
+    function setUploadProgress(percent, text) {
+        if (uploadProgressWrap) {
+            uploadProgressWrap.style.display = 'block';
+        }
+        if (uploadProgressBar) {
+            uploadProgressBar.style.width = percent + '%';
+        }
+        if (uploadProgressText) {
+            uploadProgressText.textContent = text || percent + '%';
+        }
+    }
+
+    function resetUploadProgress() {
+        if (uploadProgressWrap) {
+            uploadProgressWrap.style.display = 'none';
+        }
+        if (uploadProgressBar) {
+            uploadProgressBar.style.width = '0%';
+        }
+        if (uploadProgressText) {
+            uploadProgressText.textContent = '0%';
+        }
+        if (cancelUploadButton) {
+            cancelUploadButton.style.display = 'none';
+        }
+    }
+
+    function uploadFiles() {
+        if (!fileInput.files || fileInput.files.length === 0) {
+            return;
+        }
+
+        const formData = new FormData(uploadForm);
+        uploadXhr = new XMLHttpRequest();
+        setUploadProgress(0, '0%');
+        if (cancelUploadButton) {
+            cancelUploadButton.style.display = 'inline-block';
+        }
+
+        uploadXhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                setUploadProgress(percent, 'Uploading ' + percent + '%');
+            }
+        };
+
+        uploadXhr.onload = () => {
+            resetUploadProgress();
+            location.reload();
+        };
+
+        uploadXhr.onerror = () => {
+            resetUploadProgress();
+            alert('Upload gagal.');
+        };
+
+        uploadXhr.onabort = () => {
+            resetUploadProgress();
+            alert('Upload dibatalkan.');
+        };
+
+        uploadXhr.open('POST', window.location.href, true);
+        uploadXhr.send(formData);
+    }
 
     dropZone.addEventListener('dragover', (event) => {
         event.preventDefault();
@@ -1721,10 +2696,8 @@ document.addEventListener("DOMContentLoaded", () => {
         event.preventDefault();
         dropZone.style.backgroundColor = '';
 
-        const files = event.dataTransfer.files;
-        fileInput.files = files;
-
-        uploadForm.submit();
+        fileInput.files = event.dataTransfer.files;
+        uploadFiles();
     });
 
     browseButton.addEventListener('click', () => {
@@ -1732,8 +2705,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     fileInput.addEventListener('change', () => {
-        uploadForm.submit();
+        uploadFiles();
     });
+
+    uploadForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        uploadFiles();
+    });
+
+    if (cancelUploadButton) {
+        cancelUploadButton.addEventListener('click', () => {
+            if (uploadXhr) {
+                uploadXhr.abort();
+            }
+        });
+    }
 });
 </script>
 </body>
